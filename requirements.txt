@@ -1,0 +1,6 @@
+pillow
+fastapi
+uvicorn
+python-dotenv
+google-genai
+jinja2

@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>基於大型語言模型與擴散模型之社群文案自動敘事插畫生成系統</title>
+    <link rel="stylesheet" href="{{ url_for('assets', path='/style.css') }}?v=20260612-remove-unused-ui">
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">FastAPI AI Comic Demo</p>
+          <h1>基於大型語言模型與擴散模型之社群文案自動敘事插畫生成系統</h1>
+          <p class="hero-subtitle">輸入新聞或文章，系統會自動生成分鏡、角色圖像與多格漫畫成品。</p>
+        </div>
+      </section>
+
+      <section class="process-grid" aria-label="生成流程">
+        <article class="process-card">
+          <span class="step-number">01</span>
+          <h2>文章輸入</h2>
+          <p>貼上新聞、文章，作為漫畫劇情來源。</p>
+        </article>
+        <article class="process-card">
+          <span class="step-number">02</span>
+          <h2>AI 分析</h2>
+          <p>後端進行情緒判讀、劇情分鏡與畫面提示生成。</p>
+        </article>
+        <article class="process-card">
+          <span class="step-number">03</span>
+          <h2>漫畫合成</h2>
+          <p>完成圖片生成與版面合成，回傳最終漫畫圖。</p>
+        </article>
+      </section>
+
+      <section class="demo-panel">
+        <form id="comic-form" class="input-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">Input</p>
+              <h2>文章輸入區</h2>
+            </div>
+            <div class="input-tools">
+              <button id="toggle-settings-button" class="secondary-button compact-button" type="button">生成設定</button>
+              <button id="sample-article-button" class="secondary-button compact-button" type="button">範例文章</button>
+              <button id="clear-input-button" class="secondary-button compact-button" type="button">清空</button>
+            </div>
+          </div>
+
+          <div id="generation-settings-panel" class="generation-settings hidden">
+            <div class="settings-row">
+              <label for="style-preset">風格</label>
+              <select id="style-preset" name="style_preset">
+                <option value="balanced">平衡</option>
+                <option value="vivid">鮮明</option>
+                <option value="soft">柔和</option>
+                <option value="cinematic" selected>電影感</option>
+              </select>
+            </div>
+
+            <div class="settings-row">
+              <label for="character-consistency">角色一致性</label>
+              <select id="character-consistency" name="character_consistency">
+                <option value="strong" selected>強</option>
+                <option value="normal">普通</option>
+              </select>
+            </div>
+
+            <div class="settings-row range-row">
+              <label for="cfg-scale">CFG <span id="cfg-scale-value">5.0</span></label>
+              <input id="cfg-scale" name="guidance_scale" type="range" min="4" max="7" step="0.1" value="5">
+            </div>
+
+            <div class="settings-row range-row">
+              <label for="steps-input">Steps <span id="steps-value">28</span></label>
+              <input id="steps-input" name="steps" type="range" min="20" max="36" step="1" value="28">
+            </div>
+
+            <div class="settings-row">
+              <label for="seed-mode">Seed</label>
+              <select id="seed-mode" name="seed_mode">
+                <option value="random" selected>隨機</option>
+                <option value="fixed">固定</option>
+              </select>
+            </div>
+
+            <div class="settings-row">
+              <label for="seed-input">固定 Seed</label>
+              <input id="seed-input" name="seed" type="number" min="0" max="999999999" step="1" placeholder="例如 123456" disabled>
+            </div>
+          </div>
+
+          <label for="article-input">新聞或文章</label>
+          <textarea
+            id="article-input"
+            name="article"
+            rows="12"
+            placeholder="貼上文章內容後，按下生成漫畫..."
+            required
+          ></textarea>
+
+          <button id="generate-button" type="submit">生成漫畫</button>
+          <div id="generation-progress" class="generation-progress hidden" aria-live="polite">
+            <div class="progress-track">
+              <div id="progress-bar" class="progress-bar"></div>
+            </div>
+            <ol class="progress-steps">
+              <li data-step="0">分析文章</li>
+              <li data-step="1">生成分鏡</li>
+              <li data-step="2">生成圖片</li>
+              <li data-step="3">合成漫畫</li>
+            </ol>
+          </div>
+          <p id="status-message" class="status" aria-live="polite"></p>
+          <p id="error-message" class="error" aria-live="assertive"></p>
+        </form>
+
+        <section class="result-panel" aria-label="生成結果">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">Output</p>
+              <h2>生成結果區</h2>
+            </div>
+            <div class="result-tools">
+              <button id="favorite-result-button" class="secondary-button history-button favorite-menu-button" type="button">喜愛</button>
+              <button id="open-history-button" class="secondary-button history-button" type="button">歷史漫畫</button>
+            </div>
+          </div>
+
+          <div id="result-section" class="result hidden">
+            <div class="summary-block">
+              <h3>Summary</h3>
+              <p id="summary-text"></p>
+            </div>
+            <div id="fidelity-report-block" class="fidelity-report-block hidden">
+              <h3>自動檢討</h3>
+              <div id="fidelity-report-content" class="fidelity-report-content"></div>
+            </div>
+
+            <div id="image-empty" class="image-empty hidden">尚未取得漫畫圖片</div>
+            <div id="comic-image-frame" class="comic-image-frame hidden">
+              <img id="comic-image" class="comic-image" alt="後端合成的最終漫畫圖片">
+            </div>
+            <div id="comic-page-gallery" class="comic-page-gallery hidden" aria-label="漫畫頁面"></div>
+          </div>
+
+          <div id="result-placeholder" class="result-placeholder">
+            <p>生成完成後，最終漫畫成品會顯示在這裡。</p>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div id="history-overlay" class="history-overlay hidden"></div>
+    <aside
+      id="history-drawer"
+      class="history-drawer"
+      aria-label="先前生成的漫畫"
+      aria-hidden="true"
+    >
+      <div class="history-heading">
+        <div>
+          <p class="panel-kicker">History</p>
+          <h2>先前生成的漫畫</h2>
+        </div>
+        <button id="close-history-button" class="icon-button" type="button" aria-label="關閉歷史漫畫">×</button>
+      </div>
+
+      <button id="refresh-history-button" class="secondary-button drawer-refresh-button" type="button">重新整理</button>
+      <p id="history-status" class="history-status" aria-live="polite"></p>
+      <div id="history-empty" class="history-empty hidden">目前還沒有可查看的漫畫。</div>
+      <div id="comic-history" class="comic-history" aria-live="polite"></div>
+    </aside>
+
+    <div id="comic-context-menu" class="comic-context-menu hidden" role="menu" aria-label="漫畫操作選單">
+      <button id="context-article-button" type="button" role="menuitem">原始文章</button>
+      <button id="context-download-button" type="button" role="menuitem">下載</button>
+      <button id="context-rename-button" type="button" role="menuitem">重新命名</button>
+      <button id="context-delete-button" class="danger-button" type="button" role="menuitem">刪除</button>
+    </div>
+
+    <div id="rename-overlay" class="rename-overlay hidden"></div>
+    <form id="rename-dialog" class="rename-dialog hidden" aria-label="重新命名漫畫">
+      <label for="rename-input">重新命名</label>
+      <input id="rename-input" name="filename" type="text" autocomplete="off">
+      <div class="rename-actions">
+        <button id="cancel-rename-button" class="secondary-button" type="button">取消</button>
+        <button class="secondary-button" type="submit">儲存</button>
+      </div>
+    </form>
+
+    <div id="article-view-overlay" class="article-view-overlay hidden"></div>
+    <section id="article-view-dialog" class="article-view-dialog hidden" aria-label="原始文章觀看" aria-hidden="true">
+      <div class="article-view-heading">
+        <div>
+          <p class="panel-kicker">Source</p>
+          <h2 id="article-view-title">原始文章</h2>
+        </div>
+        <button id="close-article-view-button" class="icon-button" type="button" aria-label="關閉原始文章">×</button>
+      </div>
+      <pre id="article-view-text" class="article-view-text"></pre>
+    </section>
+
+    <div id="comic-preview-overlay" class="comic-preview-overlay hidden"></div>
+    <section
+      id="comic-preview-modal"
+      class="comic-preview-modal hidden"
+      aria-label="漫畫放大預覽"
+      aria-hidden="true"
+    >
+      <div class="comic-preview-header">
+        <div class="comic-preview-actions">
+          <h2 id="comic-preview-title">漫畫預覽</h2>
+          <button id="preview-favorite-button" class="icon-button preview-favorite-button" type="button" aria-label="加入喜愛" title="加入喜愛">♡</button>
+          <a id="preview-download-link" class="icon-button preview-download-button" href="#" download aria-label="下載漫畫">↓</a>
+          <button id="close-preview-button" class="icon-button preview-back-button" type="button" aria-label="返回先前生成的漫畫">&gt;</button>
+          <button id="dismiss-preview-button" class="icon-button preview-close-button" type="button" aria-label="關閉漫畫預覽" title="關閉">×</button>
+        </div>
+      </div>
+      <div class="comic-preview-stage">
+        <img id="comic-preview-image" class="comic-preview-image" alt="放大的歷史漫畫">
+      </div>
+    </section>
+
+    <script src="{{ url_for('assets', path='/app.js') }}?v=20260612-remove-unused-ui" defer></script>
+  </body>
+</html>

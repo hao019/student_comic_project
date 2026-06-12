@@ -76,11 +76,12 @@ def _save_storyboard_for_comic(storyboard: dict, comic_url: str) -> None:
 def generate_full_comic_from_news(news, generation_settings=None, source_article=None):
     article_text = source_article or _news_to_article_text(news)
     script = generate_news_comic_page_script(article_text)
-    prompt = build_page_prompt(script)
+    prompt = build_page_prompt(script, generation_settings)
     comic_filename = _unique_comic_filename(script.title)
     comic_url = generate_comic_page_image(prompt, comic_filename)
 
     storyboard = _page_script_to_storyboard(script, article_text)
+    storyboard["generation_settings"] = generation_settings.model_dump() if generation_settings else {}
     storyboard["comic_page_url"] = comic_url
     storyboard["comic_scroll_url"] = comic_url
     storyboard["comic_page_urls"] = [comic_url]

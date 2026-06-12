@@ -5,13 +5,7 @@ const clearInputButton = document.querySelector("#clear-input-button");
 const toggleSettingsButton = document.querySelector("#toggle-settings-button");
 const generationSettingsPanel = document.querySelector("#generation-settings-panel");
 const stylePresetInput = document.querySelector("#style-preset");
-const characterConsistencyInput = document.querySelector("#character-consistency");
-const cfgScaleInput = document.querySelector("#cfg-scale");
-const cfgScaleValue = document.querySelector("#cfg-scale-value");
-const stepsInput = document.querySelector("#steps-input");
-const stepsValue = document.querySelector("#steps-value");
-const seedModeInput = document.querySelector("#seed-mode");
-const seedInput = document.querySelector("#seed-input");
+const styleDescription = document.querySelector("#style-description");
 const generateButton = document.querySelector("#generate-button");
 const statusMessage = document.querySelector("#status-message");
 const errorMessage = document.querySelector("#error-message");
@@ -83,6 +77,26 @@ const progressStepThresholds = [0, 22, 55, 78];
 const estimatedGenerationMs = 52000;
 const settingsStorageKey = "comicGenerationSettings";
 const favoritesStorageKey = "favoriteComics";
+const comicStylePresets = [
+  "default",
+  "monochrome_draft",
+  "shonen",
+  "gag_4koma",
+  "infographic",
+  "emotional",
+  "taiwan_news",
+  "internet_meme",
+];
+const comicStyleDescriptions = {
+  default: "乾淨的新聞漫畫版面，色彩柔和，適合一般文章與新聞說明。",
+  monochrome_draft: "黑白網點、強烈墨線，漫畫原稿感較重。",
+  shonen: "速度線、誇張表情與動態構圖，畫面更有熱血節奏。",
+  gag_4koma: "表情簡潔、反應誇張，適合輕鬆有梗的四格漫畫。",
+  infographic: "圖標、箭頭與重點標籤更明顯，偏向資訊整理與懶人包。",
+  emotional: "重視表情、光影與氣氛，適合情緒轉折較強的故事。",
+  taiwan_news: "接近台灣新聞圖解風，版面清楚，適合校園、地方與社會新聞。",
+  internet_meme: "迷因反應、誇張節奏與社群感較強，適合輕鬆幽默題材。",
+};
 
 const sampleArticle = `校園科技社今天舉辦「AI 創意漫畫工作坊」，學生們把生活中的小故事輸入系統，短短幾分鐘就生成四格漫畫。
 
@@ -120,27 +134,19 @@ async function loadSampleArticle() {
   }
 }
 
-function syncSettingsUi() {
-  cfgScaleValue.textContent = Number(cfgScaleInput.value).toFixed(1);
-  stepsValue.textContent = stepsInput.value;
-  seedInput.disabled = seedModeInput.value !== "fixed";
-  if (seedInput.disabled) {
-    seedInput.value = "";
-  }
+function getGenerationSettings() {
+  return {
+    style_preset: stylePresetInput?.value || "default",
+  };
 }
 
-function getGenerationSettings() {
-  const seedMode = seedModeInput.value;
-  const seedValue = Number.parseInt(seedInput.value, 10);
+function syncStyleDescription() {
+  if (!styleDescription) {
+    return;
+  }
 
-  return {
-    style_preset: stylePresetInput.value,
-    character_consistency: characterConsistencyInput.value,
-    guidance_scale: Number.parseFloat(cfgScaleInput.value),
-    steps: Number.parseInt(stepsInput.value, 10),
-    seed_mode: seedMode,
-    seed: seedMode === "fixed" && Number.isFinite(seedValue) ? seedValue : null,
-  };
+  const stylePreset = stylePresetInput?.value || "default";
+  styleDescription.textContent = comicStyleDescriptions[stylePreset] || comicStyleDescriptions.default;
 }
 
 function saveGenerationSettings() {
@@ -150,21 +156,20 @@ function saveGenerationSettings() {
 function loadGenerationSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(settingsStorageKey) || "{}");
-    if (["balanced", "vivid", "soft", "cinematic"].includes(saved.style_preset)) {
+    if (!stylePresetInput) {
+      return;
+    }
+
+    if (comicStylePresets.includes(saved.style_preset)) {
       stylePresetInput.value = saved.style_preset;
     } else {
-      stylePresetInput.value = "cinematic";
+      stylePresetInput.value = "default";
     }
-    if (saved.character_consistency) characterConsistencyInput.value = saved.character_consistency;
-    if (Number.isFinite(saved.guidance_scale)) cfgScaleInput.value = saved.guidance_scale;
-    if (Number.isFinite(saved.steps)) stepsInput.value = saved.steps;
-    if (saved.seed_mode) seedModeInput.value = saved.seed_mode;
-    if (Number.isFinite(saved.seed)) seedInput.value = saved.seed;
   } catch (error) {
     console.warn("Could not load generation settings", error);
   }
 
-  syncSettingsUi();
+  syncStyleDescription();
 }
 
 function attachPressFeedback() {
@@ -1029,13 +1034,13 @@ toggleSettingsButton.addEventListener("click", () => {
     !generationSettingsPanel.classList.contains("hidden")
   );
 });
-[stylePresetInput, characterConsistencyInput, cfgScaleInput, stepsInput, seedModeInput, seedInput].forEach((input) => {
+[stylePresetInput].filter(Boolean).forEach((input) => {
   input.addEventListener("input", () => {
-    syncSettingsUi();
+    syncStyleDescription();
     saveGenerationSettings();
   });
   input.addEventListener("change", () => {
-    syncSettingsUi();
+    syncStyleDescription();
     saveGenerationSettings();
   });
 });
@@ -1146,5 +1151,6 @@ document.addEventListener("keydown", (event) => {
   }
 });
 loadGenerationSettings();
+syncStyleDescription();
 attachPressFeedback();
 loadComicHistory();

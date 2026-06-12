@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>基於大型語言模型與擴散模型之社群文案自動敘事插畫生成系統</title>
-    <link rel="stylesheet" href="{{ url_for('assets', path='/style.css') }}?v=20260612-dino-jump-sync">
+    <link rel="stylesheet" href="{{ url_for('assets', path='/style.css') }}?v=20260612-comic-style-desc">
   </head>
   <body>
     <main class="page-shell">
@@ -44,7 +44,7 @@
               <h2>文章輸入區</h2>
             </div>
             <div class="input-tools">
-              <button id="toggle-settings-button" class="secondary-button compact-button" type="button">生成設定</button>
+              <button id="toggle-settings-button" class="secondary-button compact-button" type="button">漫畫風格切換</button>
               <button id="sample-article-button" class="secondary-button compact-button" type="button">範例文章</button>
               <button id="clear-input-button" class="secondary-button compact-button" type="button">清空</button>
             </div>
@@ -52,44 +52,18 @@
 
           <div id="generation-settings-panel" class="generation-settings hidden">
             <div class="settings-row">
-              <label for="style-preset">風格</label>
+              <label for="style-preset">漫畫風格</label>
               <select id="style-preset" name="style_preset">
-                <option value="balanced">平衡</option>
-                <option value="vivid">鮮明</option>
-                <option value="soft">柔和</option>
-                <option value="cinematic" selected>電影感</option>
+                <option value="default" selected>預設</option>
+                <option value="monochrome_draft">黑白漫畫原稿風</option>
+                <option value="shonen">少年漫畫風</option>
+                <option value="gag_4koma">搞笑四格風</option>
+                <option value="infographic">資訊圖表漫畫風</option>
+                <option value="emotional">情緒驅動畫風</option>
+                <option value="taiwan_news">台灣新聞漫畫風</option>
+                <option value="internet_meme">網路迷因風</option>
               </select>
-            </div>
-
-            <div class="settings-row">
-              <label for="character-consistency">角色一致性</label>
-              <select id="character-consistency" name="character_consistency">
-                <option value="strong" selected>強</option>
-                <option value="normal">普通</option>
-              </select>
-            </div>
-
-            <div class="settings-row range-row">
-              <label for="cfg-scale">CFG <span id="cfg-scale-value">5.0</span></label>
-              <input id="cfg-scale" name="guidance_scale" type="range" min="4" max="7" step="0.1" value="5">
-            </div>
-
-            <div class="settings-row range-row">
-              <label for="steps-input">Steps <span id="steps-value">28</span></label>
-              <input id="steps-input" name="steps" type="range" min="20" max="36" step="1" value="28">
-            </div>
-
-            <div class="settings-row">
-              <label for="seed-mode">Seed</label>
-              <select id="seed-mode" name="seed_mode">
-                <option value="random" selected>隨機</option>
-                <option value="fixed">固定</option>
-              </select>
-            </div>
-
-            <div class="settings-row">
-              <label for="seed-input">固定 Seed</label>
-              <input id="seed-input" name="seed" type="number" min="0" max="999999999" step="1" placeholder="例如 123456" disabled>
+              <p id="style-description" class="style-description" aria-live="polite"></p>
             </div>
           </div>
 
@@ -234,6 +208,6 @@
       </div>
     </section>
 
-    <script src="{{ url_for('assets', path='/app.js') }}?v=20260612-dino-jump-sync" defer></script>
+    <script src="{{ url_for('assets', path='/app.js') }}?v=20260612-comic-style-desc" defer></script>
   </body>
 </html>

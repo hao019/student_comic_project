@@ -5,9 +5,16 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
-StylePreset = Literal["balanced", "vivid", "soft", "cinematic"]
-SeedMode = Literal["random", "fixed"]
-CharacterConsistency = Literal["normal", "strong"]
+StylePreset = Literal[
+    "default",
+    "monochrome_draft",
+    "shonen",
+    "gag_4koma",
+    "infographic",
+    "emotional",
+    "taiwan_news",
+    "internet_meme",
+]
 
 
 class NewsInput(BaseModel):
@@ -30,15 +37,7 @@ class ArticleInput(BaseModel):
 class GenerationSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    style_preset: StylePreset = Field(default="cinematic", description="Legacy frontend visual style preset")
-    character_consistency: CharacterConsistency = Field(
-        default="strong",
-        description="Legacy frontend character consistency setting",
-    )
-    guidance_scale: float = Field(default=5.0, ge=4.0, le=7.0, description="Legacy frontend CFG scale")
-    steps: int = Field(default=28, ge=20, le=36, description="Legacy frontend diffusion steps")
-    seed_mode: SeedMode = Field(default="random", description="Legacy frontend seed mode")
-    seed: Optional[int] = Field(default=None, ge=0, le=999999999, description="Legacy frontend fixed seed")
+    style_preset: StylePreset = Field(default="default", description="Comic visual style preset")
 
 
 class NewsComicPagePanel(BaseModel):

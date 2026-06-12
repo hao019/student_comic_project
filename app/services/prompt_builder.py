@@ -1,7 +1,42 @@
-from app.schemas import NewsComicPageScript
+from app.schemas import GenerationSettings, NewsComicPageScript
 
 
-def build_page_prompt(script: NewsComicPageScript) -> str:
+COMIC_STYLE_PROMPTS = {
+    "default": """clean editorial manga, soft color, ink outlines, newspaper comic page,
+clear black panel borders, balanced text boxes, readable Traditional Chinese text.""",
+    "monochrome_draft": """black-and-white manga manuscript style, crisp ink line art, screentone shading,
+visible pen texture, strong black panel borders, no color except black, white, and gray,
+readable Traditional Chinese text.""",
+    "shonen": """energetic shonen manga style, bold dynamic poses, expressive faces, speed lines,
+dramatic impact framing, high-contrast ink outlines, vivid but controlled color,
+readable Traditional Chinese text.""",
+    "gag_4koma": """lighthearted gag four-panel comic style, simple cute characters, clear reactions,
+rounded speech bubbles, playful facial expressions, clean bright colors,
+readable Traditional Chinese text.""",
+    "infographic": """information graphic comic style, clean editorial layout, icons, arrows, labels,
+simple character illustrations, organized data callouts, restrained colors,
+readable Traditional Chinese text with strong hierarchy.""",
+    "emotional": """emotion-driven animated comic style, cinematic facial expressions, warm lighting,
+soft painterly color, atmospheric but clear scenes, expressive body language,
+readable Traditional Chinese text.""",
+    "taiwan_news": """Taiwanese news comic style, clean local newspaper and TV news explainer feeling,
+approachable characters, realistic Taiwan street and school details when relevant,
+clear title bars, callout boxes, restrained editorial colors, readable Traditional Chinese text.""",
+    "internet_meme": """internet meme comic style, exaggerated reaction faces, bold punchline timing,
+simple high-contrast panels, playful sticker-like callouts, social media humor energy,
+readable Traditional Chinese text without adding unrelated meme captions.""",
+}
+
+
+def _style_prompt(generation_settings: GenerationSettings | None) -> str:
+    style_preset = "default"
+    if generation_settings:
+        style_preset = generation_settings.style_preset
+
+    return COMIC_STYLE_PROMPTS.get(style_preset, COMIC_STYLE_PROMPTS["default"])
+
+
+def build_page_prompt(script: NewsComicPageScript, generation_settings: GenerationSettings | None = None) -> str:
     panel_lines = []
     for panel in script.panels:
         panel_lines.append(
@@ -25,11 +60,12 @@ def build_page_prompt(script: NewsComicPageScript) -> str:
     allowed_facts = "\n".join(f"- {fact}" for fact in script.allowed_facts) or "- none"
     locked_text = "\n".join(f"- {text}" for text in script.locked_text_blocks) or "- none"
 
+    style_prompt = _style_prompt(generation_settings)
+
     return f"""Create a complete one-page Traditional Chinese news explainer manga infographic.
 
 Overall style:
-clean editorial manga, soft watercolor color, ink outlines, newspaper comic page,
-clear black panel borders, balanced text boxes, readable Traditional Chinese text.
+{style_prompt}
 
 Canvas and layout:
 square 1:1 composition.

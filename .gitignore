@@ -21,6 +21,7 @@ static/outputs/
 outputs/
 
 # Local runtime files
+.local/
 .tmp/
 *.log
 ngrok.*.log

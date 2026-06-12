@@ -31,6 +31,9 @@ const favoriteResultButton = document.querySelector("#favorite-result-button");
 const closeHistoryButton = document.querySelector("#close-history-button");
 const historyDrawer = document.querySelector("#history-drawer");
 const historyOverlay = document.querySelector("#history-overlay");
+const googleLoginLink = document.querySelector("#google-login-link");
+const googleLogoutButton = document.querySelector("#google-logout-button");
+const driveStatus = document.querySelector("#drive-status");
 const comicPreviewOverlay = document.querySelector("#comic-preview-overlay");
 const comicPreviewHeader = document.querySelector(".comic-preview-header");
 const comicPreviewActions = document.querySelector(".comic-preview-actions");
@@ -65,6 +68,7 @@ let historyMode = "history";
 let allComicsCache = [];
 let previewControlsTimer = null;
 let selectedComicHasArticle = false;
+let selectedComicDownloadUrl = "";
 
 const progressLabels = [
   "分析文章中...",
@@ -476,6 +480,80 @@ function getErrorMessage(data, fallback) {
   return fallback;
 }
 
+function setDriveStatus(message, mode = "") {
+  if (!driveStatus) {
+    return;
+  }
+
+  driveStatus.textContent = message;
+  driveStatus.classList.toggle("is-connected", mode === "connected");
+  driveStatus.classList.toggle("has-warning", mode === "warning");
+}
+
+function renderDriveUploadStatus(upload, error = "") {
+  if (upload?.comic?.webViewLink) {
+    setDriveStatus("已自動存到 Google Drive。", "connected");
+
+    const link = document.createElement("a");
+    link.href = upload.comic.webViewLink;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "開啟 Drive 檔案";
+    driveStatus.append(" ", link);
+    return;
+  }
+
+  if (error) {
+    setDriveStatus(`漫畫已生成，但同步 Google Drive 失敗：${error}`, "warning");
+    return;
+  }
+
+  setDriveStatus("尚未登入 Google；漫畫已先存到本機歷史紀錄。");
+}
+
+async function syncGoogleAuthStatus() {
+  if (!googleLoginLink || !googleLogoutButton) {
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/auth/google/status");
+    const data = await response.json();
+    const user = data.user || {};
+
+    googleLoginLink.classList.toggle("hidden", Boolean(data.authenticated));
+    googleLogoutButton.classList.toggle("hidden", !data.authenticated);
+
+    if (!data.configured) {
+      setDriveStatus("尚未設定 Google OAuth，請先在 .env 填入 GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET。", "warning");
+    } else if (data.authenticated) {
+      setDriveStatus(`已登入 Google：${user.email || user.name || "可同步 Drive"}`, "connected");
+    } else {
+      setDriveStatus("登入 Google 後，生成完成會自動存到你的 Drive。");
+    }
+  } catch (error) {
+    console.error(error);
+    setDriveStatus("無法確認 Google 登入狀態。", "warning");
+  }
+}
+
+async function logoutGoogle() {
+  if (!googleLogoutButton) {
+    return;
+  }
+
+  googleLogoutButton.disabled = true;
+  try {
+    await fetch("/auth/google/logout", { method: "POST" });
+    await syncGoogleAuthStatus();
+  } catch (error) {
+    console.error(error);
+    setDriveStatus("Google 登出失敗，請稍後再試。", "warning");
+  } finally {
+    googleLogoutButton.disabled = false;
+  }
+}
+
 function formatComicDate(timestamp) {
   if (!timestamp) {
     return "未知時間";
@@ -495,6 +573,28 @@ function getDownloadUrl(filename) {
 
 function getArticleUrl(filename) {
   return `/api/comics/${encodeURIComponent(filename)}/article`;
+}
+
+function getComicDownloadUrl(comicOrFilename) {
+  if (comicOrFilename && typeof comicOrFilename === "object") {
+    if (comicOrFilename.storage === "drive" && comicOrFilename.drive_file_id) {
+      return `/api/drive/files/${encodeURIComponent(comicOrFilename.drive_file_id)}/content`;
+    }
+    return getDownloadUrl(comicOrFilename.filename);
+  }
+
+  return getDownloadUrl(comicOrFilename);
+}
+
+function getComicArticleUrl(comicOrFilename) {
+  if (comicOrFilename && typeof comicOrFilename === "object") {
+    if (comicOrFilename.storage === "drive" && comicOrFilename.drive_storyboard_id) {
+      return `/api/drive/files/${encodeURIComponent(comicOrFilename.drive_storyboard_id)}/article`;
+    }
+    return getArticleUrl(comicOrFilename.filename);
+  }
+
+  return getArticleUrl(comicOrFilename);
 }
 
 function getFilenameFromUrl(imageUrl) {
@@ -522,6 +622,8 @@ function showComicContextMenu(event, comic) {
   event.stopPropagation();
   contextComic = comic;
   contextArticleButton.disabled = !comic?.has_article;
+  contextRenameButton.disabled = comic?.storage === "drive";
+  contextDeleteButton.disabled = comic?.storage === "drive";
 
   const menuWidth = 180;
   const menuHeight = 176;
@@ -533,13 +635,14 @@ function showComicContextMenu(event, comic) {
   comicContextMenu.classList.remove("hidden");
 }
 
-function downloadComic(filename) {
+function downloadComic(comicOrFilename) {
+  const filename = typeof comicOrFilename === "object" ? comicOrFilename?.filename : comicOrFilename;
   if (!filename) {
     return;
   }
 
   const link = document.createElement("a");
-  link.href = getDownloadUrl(filename);
+  link.href = getComicDownloadUrl(comicOrFilename);
   link.download = filename;
   document.body.append(link);
   link.click();
@@ -632,7 +735,8 @@ async function viewOriginalArticle(filename, fallbackTitle = "") {
   }
 
   try {
-    const response = await fetch(getArticleUrl(filename));
+    const comicForArticle = contextComic?.filename === filename ? contextComic : filename;
+    const response = await fetch(getComicArticleUrl(comicForArticle));
     const data = await response.json();
 
     if (!response.ok) {
@@ -694,7 +798,7 @@ function closeHistoryDrawer() {
   historyOverlay.classList.add("hidden");
 }
 
-function openComicPreview(imageUrl, title, hasArticle = true) {
+function openComicPreview(imageUrl, title, hasArticle = true, downloadUrl = "") {
   if (!imageUrl) {
     return;
   }
@@ -703,10 +807,11 @@ function openComicPreview(imageUrl, title, hasArticle = true) {
   comicPreviewImage.alt = title ? `放大的歷史漫畫：${title}` : "放大的歷史漫畫";
   comicPreviewTitle.textContent = title || "漫畫預覽";
   selectedComicFilename = title || "";
+  selectedComicDownloadUrl = downloadUrl || "";
   selectedComicHasArticle = Boolean(hasArticle || getArticleFromStoryboard(currentStoryboard));
   closeArticleView();
   if (selectedComicFilename) {
-    previewDownloadLink.href = getDownloadUrl(selectedComicFilename);
+    previewDownloadLink.href = selectedComicDownloadUrl || getDownloadUrl(selectedComicFilename);
     previewDownloadLink.setAttribute("download", selectedComicFilename);
   } else {
     previewDownloadLink.href = imageUrl;
@@ -737,6 +842,7 @@ function closeComicPreview() {
       comicPreviewImage.removeAttribute("src");
       previewDownloadLink.removeAttribute("href");
       selectedComicFilename = "";
+      selectedComicDownloadUrl = "";
       selectedComicHasArticle = false;
       syncPreviewFavoriteButton();
     }
@@ -750,8 +856,13 @@ function returnToComicHistory() {
   }, 240);
 }
 
-async function loadComicStoryboard(filename) {
-  const response = await fetch(`/api/comics/${encodeURIComponent(filename)}/storyboard`);
+async function loadComicStoryboard(comicOrFilename) {
+  const isDriveComic = comicOrFilename && typeof comicOrFilename === "object" && comicOrFilename.storage === "drive";
+  const filename = isDriveComic ? comicOrFilename.filename : comicOrFilename;
+  const storyboardUrl = isDriveComic
+    ? `/api/drive/files/${encodeURIComponent(comicOrFilename.drive_storyboard_id)}/storyboard`
+    : `/api/comics/${encodeURIComponent(filename)}/storyboard`;
+  const response = await fetch(storyboardUrl);
   const data = await response.json();
 
   if (!response.ok) {
@@ -773,8 +884,8 @@ async function selectHistoryComic(comic) {
 
   if (comic.editable) {
     try {
-      currentStoryboard = await loadComicStoryboard(comic.filename);
-      imageUrl = currentStoryboard?.comic_scroll_url || imageUrl;
+      currentStoryboard = await loadComicStoryboard(comic);
+      imageUrl = comic.storage === "drive" ? imageUrl : currentStoryboard?.comic_scroll_url || imageUrl;
     } catch (error) {
       console.error(error);
       historyStatus.textContent = error.message || "無法讀取漫畫編輯資料";
@@ -786,11 +897,16 @@ async function selectHistoryComic(comic) {
   resultSection.classList.remove("hidden");
   resultPlaceholder.classList.add("hidden");
   showComicPages(
-    currentStoryboard?.comic_page_urls || [imageUrl],
-    currentStoryboard?.comic_scroll_url || imageUrl
+    comic.storage === "drive" ? [imageUrl] : currentStoryboard?.comic_page_urls || [imageUrl],
+    comic.storage === "drive" ? imageUrl : currentStoryboard?.comic_scroll_url || imageUrl
   );
   closeHistoryDrawer();
-  openComicPreview(imageUrl, title, comic.has_article || Boolean(getArticleFromStoryboard(currentStoryboard)));
+  openComicPreview(
+    imageUrl,
+    title,
+    comic.has_article || Boolean(getArticleFromStoryboard(currentStoryboard)),
+    getComicDownloadUrl(comic)
+  );
 }
 
 function openCurrentResultPreview() {
@@ -939,9 +1055,10 @@ function renderComicHistory(comics) {
 
     const date = document.createElement("time");
     const pageLabel = comic.page_count > 1 ? ` · ${comic.page_count} 頁` : "";
+    const storageLabel = comic.storage === "drive" ? " · 雲端" : "";
     date.textContent = comic.editable
-      ? `${formatComicDate(comic.created_at)} · 可編輯${pageLabel}`
-      : `${formatComicDate(comic.created_at)}${pageLabel}`;
+      ? `${formatComicDate(comic.created_at)} · 可編輯${pageLabel}${storageLabel}`
+      : `${formatComicDate(comic.created_at)}${pageLabel}${storageLabel}`;
 
     meta.append(name, date);
     button.append(image, meta);
@@ -964,6 +1081,9 @@ async function loadComicHistory() {
 
     allComicsCache = Array.isArray(data.comics) ? data.comics : [];
     rerenderCurrentHistory();
+    if (data.drive_error) {
+      historyStatus.textContent += `（雲端載入失敗：${data.drive_error}）`;
+    }
   } catch (error) {
     console.error(error);
     historyStatus.textContent = error.message || "無法載入歷史漫畫";
@@ -986,6 +1106,7 @@ form.addEventListener("submit", async (event) => {
   resetResult();
   setLoading(true);
   startProgress();
+  setDriveStatus("生成完成後會嘗試同步到 Google Drive...");
   let didGenerate = false;
 
   try {
@@ -1013,6 +1134,7 @@ form.addEventListener("submit", async (event) => {
     resultSection.classList.remove("hidden");
     resultPlaceholder.classList.add("hidden");
     showComicPages(data.comic_page_urls || [data.comic_image_url], data.comic_scroll_url || data.comic_image_url);
+    renderDriveUploadStatus(data.drive_upload, data.drive_upload_error);
     await loadComicHistory();
     didGenerate = true;
   } catch (error) {
@@ -1053,6 +1175,7 @@ clearInputButton.addEventListener("click", () => {
 favoriteResultButton.addEventListener("click", () => {
   openHistoryDrawer("favorites");
 });
+googleLogoutButton?.addEventListener("click", logoutGoogle);
 previewFavoriteButton.addEventListener("click", () => {
   if (!selectedComicFilename) {
     return;
@@ -1094,7 +1217,7 @@ contextArticleButton.addEventListener("click", () => {
 });
 contextDownloadButton.addEventListener("click", () => {
   if (contextComic) {
-    downloadComic(contextComic.filename);
+    downloadComic(contextComic);
   }
   hideComicContextMenu();
 });
@@ -1153,4 +1276,5 @@ document.addEventListener("keydown", (event) => {
 loadGenerationSettings();
 syncStyleDescription();
 attachPressFeedback();
+syncGoogleAuthStatus();
 loadComicHistory();

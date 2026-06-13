@@ -18,6 +18,9 @@ GOOGLE_NEWS_TOP_STORIES_RSS = "https://news.google.com/rss?hl=zh-TW&gl=TW&ceid=T
 REQUEST_TIMEOUT_SECONDS = 12
 MAX_RSS_BYTES = 1_000_000
 MIN_FALLBACK_DIGEST_CHARS = 20
+INVALID_XML_CHARS_RE = re.compile(
+    b"[\x00-\x08\x0b\x0c\x0e-\x1f]"
+)
 
 
 class GoogleNewsFetchError(RuntimeError):
@@ -182,6 +185,7 @@ def _find_text(element: ET.Element, name: str) -> str:
 
 def fetch_google_news_items() -> list[GoogleNewsItem]:
     rss_bytes = _read_google_news_rss()
+    rss_bytes = INVALID_XML_CHARS_RE.sub(b"", rss_bytes)
     try:
         root = ET.fromstring(rss_bytes)
     except ET.ParseError as e:

@@ -44,6 +44,7 @@ const comicPreviewModal = document.querySelector("#comic-preview-modal");
 const comicPreviewImage = document.querySelector("#comic-preview-image");
 const comicPreviewTitle = document.querySelector("#comic-preview-title");
 const previewDownloadLink = document.querySelector("#preview-download-link");
+const previewAnalysisButton = document.querySelector("#preview-analysis-button");
 const previewFavoriteButton = document.querySelector("#preview-favorite-button");
 const closePreviewButton = document.querySelector("#close-preview-button");
 const dismissPreviewButton = document.querySelector("#dismiss-preview-button");
@@ -83,6 +84,8 @@ let contextComic = null;
 let renameTargetFilename = "";
 let currentStoryboard = null;
 let currentComicFilename = "";
+let currentAnalysisComic = null;
+let currentAnalysisError = "";
 let historyMode = "history";
 let allComicsCache = [];
 let activeHistoryCategory = "all";
@@ -119,6 +122,7 @@ const progressStepThresholds = [0, 22, 55, 78];
 const estimatedGenerationMs = 52000;
 const settingsStorageKey = "comicGenerationSettings";
 const favoritesStorageKey = "favoriteComics";
+const lastAnalysisComicStorageKey = "lastAnalysisComic";
 const historyCategories = [
   { id: "all", label: "全部", keywords: [] },
   { id: "lifestyle", label: "生活", keywords: ["生活", "天氣", "交通", "教育", "校園", "消費", "美食", "旅遊"] },
@@ -325,6 +329,8 @@ function resetResult() {
   summaryText.textContent = "";
   renderFidelityReport(null);
   currentStoryboard = null;
+  currentAnalysisComic = null;
+  currentAnalysisError = "";
   renderAiAnalysis();
   currentComicFilename = "";
   syncFavoriteButton();
@@ -525,12 +531,21 @@ function setActiveMainNav(activeButton) {
 
 function showMainView(viewName = "generate") {
   const isAnalysis = viewName === "analysis";
-  generateView?.classList.toggle("hidden", isAnalysis);
+  const isLibrary = viewName === "library";
+  if (isAnalysis) {
+    closeHistoryDrawer();
+    closeComicPreview();
+    hideComicContextMenu();
+  }
+
+  generateView?.classList.toggle("hidden", isAnalysis || isLibrary);
   analysisView?.classList.toggle("hidden", !isAnalysis);
-  setActiveMainNav(isAnalysis ? analysisNavButton : homeNavButton);
+  historyDrawer?.classList.toggle("hidden", !isLibrary);
+  historyDrawer?.setAttribute("aria-hidden", String(!isLibrary));
+  setActiveMainNav(isAnalysis ? analysisNavButton : isLibrary ? libraryNavButton : homeNavButton);
 
   if (isAnalysis) {
-    renderAiAnalysis();
+    ensureAnalysisStoryboard();
   }
 }
 
@@ -556,6 +571,7 @@ function getFinalComicUrl(storyboard) {
   return storyboard?.comic_scroll_url
     || storyboard?.comic_page_url
     || (Array.isArray(storyboard?.comic_page_urls) ? storyboard.comic_page_urls[0] : "")
+    || currentAnalysisComic?.url
     || comicImage?.getAttribute("src")
     || "";
 }
@@ -566,11 +582,42 @@ function renderAiAnalysis() {
   }
 
   const storyboard = currentStoryboard;
+  const comic = currentAnalysisComic;
   const hasStoryboard = storyboard && typeof storyboard === "object";
-  analysisEmpty.classList.toggle("hidden", hasStoryboard);
-  analysisContent.classList.toggle("hidden", !hasStoryboard);
+  const hasComic = comic && typeof comic === "object";
+  const hasAnalysisTarget = hasStoryboard || hasComic;
+  analysisEmpty.classList.toggle("hidden", hasAnalysisTarget);
+  analysisContent.classList.toggle("hidden", !hasAnalysisTarget);
+
+  if (!hasAnalysisTarget) {
+    return;
+  }
 
   if (!hasStoryboard) {
+    analysisTitle.textContent = comic.title || comic.filename || "未命名漫畫";
+    analysisArticle.textContent = currentAnalysisError
+      ? `已找到作品，但讀取 storyboard 失敗：${currentAnalysisError}`
+      : "這張作品只有漫畫圖片，沒有保存原始新聞或 storyboard JSON。請選取有流程資料的作品，或重新生成一篇漫畫後查看完整 AI 流程。";
+    analysisUnderstanding.textContent = formatJsonBlock({
+      status: "missing_storyboard",
+      reason: currentAnalysisError || "此舊作品缺少 comic_data JSON，因此無法還原新聞理解、分鏡與 Prompt Builder。",
+      filename: comic.filename || "",
+      storage: comic.storage || "local",
+    });
+    analysisPanels.replaceChildren();
+    const missingPanel = document.createElement("p");
+    missingPanel.textContent = "沒有分鏡資料。作品庫中 editable 為 true 的作品才會有完整分鏡流程。";
+    analysisPanels.append(missingPanel);
+    analysisPrompt.textContent = "沒有保存最終 prompt。";
+
+    const fallbackImageUrl = getFinalComicUrl(null);
+    if (fallbackImageUrl) {
+      analysisFinalImage.src = fallbackImageUrl;
+      analysisFinalImage.classList.remove("hidden");
+    } else {
+      analysisFinalImage.removeAttribute("src");
+      analysisFinalImage.classList.add("hidden");
+    }
     return;
   }
 
@@ -630,6 +677,80 @@ function getMajorPanelEmotion(storyboard) {
   const panels = Array.isArray(storyboard?.panels) ? storyboard.panels : [];
   const emotion = panels.find((panel) => panel.emotion)?.emotion;
   return emotion || "";
+}
+
+function mountHistoryAsMainView() {
+  const pageShell = document.querySelector(".page-shell");
+  if (!pageShell || !historyDrawer) {
+    return;
+  }
+
+  historyDrawer.classList.add("hidden");
+  historyDrawer.setAttribute("aria-hidden", "true");
+  pageShell.append(historyDrawer);
+}
+
+function getComicKey(comic) {
+  return [comic?.storage || "local", comic?.filename || "", comic?.drive_storyboard_id || ""].join("|");
+}
+
+function rememberAnalysisComic(comic) {
+  if (!comic?.filename) {
+    return;
+  }
+
+  currentAnalysisComic = comic;
+  try {
+    localStorage.setItem(lastAnalysisComicStorageKey, JSON.stringify({
+      filename: comic.filename,
+      storage: comic.storage || "local",
+      drive_storyboard_id: comic.drive_storyboard_id || "",
+    }));
+  } catch (error) {
+    console.warn("Could not save last analysis comic", error);
+  }
+}
+
+function getSavedAnalysisComicRef() {
+  try {
+    return JSON.parse(localStorage.getItem(lastAnalysisComicStorageKey) || "null");
+  } catch (error) {
+    console.warn("Could not read last analysis comic", error);
+    return null;
+  }
+}
+
+function findComicFromRef(comics, ref) {
+  if (!Array.isArray(comics) || !ref) {
+    return null;
+  }
+
+  return comics.find((comic) => {
+    if (ref.drive_storyboard_id && comic.drive_storyboard_id === ref.drive_storyboard_id) {
+      return true;
+    }
+    return comic.filename === ref.filename && (comic.storage || "local") === (ref.storage || "local");
+  }) || null;
+}
+
+function shouldLoadComicStoryboard(comic) {
+  return Boolean(comic) && (comic.storage === "local" || Boolean(comic.drive_storyboard_id));
+}
+
+async function ensureAnalysisStoryboard() {
+  if (currentStoryboard || !shouldLoadComicStoryboard(currentAnalysisComic)) {
+    renderAiAnalysis();
+    return;
+  }
+
+  try {
+    currentStoryboard = await loadComicStoryboard(currentAnalysisComic);
+    currentAnalysisError = "";
+  } catch (error) {
+    console.warn("Could not restore analysis storyboard", error);
+    currentAnalysisError = error.message || "未知錯誤";
+  }
+  renderAiAnalysis();
 }
 
 function getErrorMessage(data, fallback) {
@@ -1076,15 +1197,14 @@ function rerenderCurrentHistory() {
 
 function openHistoryDrawer(mode = "history") {
   setHistoryDrawerMode(mode);
-  document.body.classList.add("history-drawer-open");
-  historyDrawer.setAttribute("aria-hidden", "false");
-  historyOverlay.classList.remove("hidden");
+  showMainView("library");
   loadComicHistory();
 }
 
 function closeHistoryDrawer() {
   document.body.classList.remove("history-drawer-open");
   historyDrawer.setAttribute("aria-hidden", "true");
+  historyDrawer.classList.add("hidden");
   historyOverlay.classList.add("hidden");
 }
 
@@ -1146,8 +1266,9 @@ function returnToComicHistory() {
 }
 
 async function loadComicStoryboard(comicOrFilename) {
-  const isDriveComic = comicOrFilename && typeof comicOrFilename === "object" && comicOrFilename.storage === "drive";
-  const filename = isDriveComic ? comicOrFilename.filename : comicOrFilename;
+  const isComicObject = comicOrFilename && typeof comicOrFilename === "object";
+  const isDriveComic = isComicObject && comicOrFilename.storage === "drive";
+  const filename = isComicObject ? comicOrFilename.filename : comicOrFilename;
   const storyboardUrl = isDriveComic
     ? `/api/drive/files/${encodeURIComponent(comicOrFilename.drive_storyboard_id)}/storyboard`
     : `/api/comics/${encodeURIComponent(filename)}/storyboard`;
@@ -1170,13 +1291,18 @@ async function selectHistoryComic(comic) {
 
   errorMessage.textContent = "";
   currentStoryboard = null;
+  currentAnalysisError = "";
+  rememberAnalysisComic(comic);
 
-  if (comic.editable) {
+  if (shouldLoadComicStoryboard(comic)) {
     try {
       currentStoryboard = await loadComicStoryboard(comic);
+      currentAnalysisError = "";
       imageUrl = comic.storage === "drive" ? imageUrl : currentStoryboard?.comic_scroll_url || imageUrl;
+      renderAiAnalysis();
     } catch (error) {
       console.error(error);
+      currentAnalysisError = error.message || "無法讀取 storyboard";
       historyStatus.textContent = error.message || "無法讀取漫畫編輯資料";
     }
   }
@@ -1379,6 +1505,14 @@ async function loadComicHistory() {
     }
 
     allComicsCache = Array.isArray(data.comics) ? data.comics : [];
+    const savedComic = findComicFromRef(allComicsCache, getSavedAnalysisComicRef());
+    const currentComic = findComicFromRef(allComicsCache, currentAnalysisComic);
+    const restorableComic = currentComic || savedComic || allComicsCache.find(shouldLoadComicStoryboard) || allComicsCache[0] || null;
+    if (restorableComic && (!currentAnalysisComic || getComicKey(restorableComic) !== getComicKey(currentAnalysisComic))) {
+      currentStoryboard = null;
+      rememberAnalysisComic(restorableComic);
+      ensureAnalysisStoryboard();
+    }
     rerenderCurrentHistory();
     if (data.drive_error) {
       historyStatus.textContent += `（雲端載入失敗：${data.drive_error}）`;
@@ -1431,6 +1565,17 @@ form.addEventListener("submit", async (event) => {
     summaryText.textContent = data.summary || data.title || "已完成漫畫生成";
     showToast(summaryText.textContent, "summary", 5200);
     currentStoryboard = data.storyboard || null;
+    currentAnalysisError = "";
+    const generatedImageUrl = data.comic_scroll_url || data.comic_image_url || currentStoryboard?.comic_scroll_url || currentStoryboard?.comic_page_url || "";
+    if (generatedImageUrl) {
+      rememberAnalysisComic({
+        filename: getFilenameFromUrl(generatedImageUrl),
+        url: generatedImageUrl,
+        title: data.title || currentStoryboard?.title || "",
+        storage: "local",
+        editable: Boolean(currentStoryboard),
+      });
+    }
     renderFidelityReport(data.story_fidelity_report || currentStoryboard?.story_fidelity_report);
     resultSection.classList.remove("hidden");
     resultPlaceholder.classList.add("hidden");
@@ -1506,8 +1651,9 @@ previewFavoriteButton.addEventListener("click", () => {
   syncPreviewFavoriteButton();
   rerenderCurrentHistory();
 });
+previewAnalysisButton?.addEventListener("click", () => showMainView("analysis"));
 comicImage.addEventListener("click", openCurrentResultPreview);
-closeHistoryButton.addEventListener("click", closeHistoryDrawer);
+closeHistoryButton.addEventListener("click", () => showMainView("generate"));
 historyOverlay.addEventListener("click", closeHistoryDrawer);
 refreshHistoryButton.addEventListener("click", loadComicHistory);
 historySearchInput?.addEventListener("input", rerenderCurrentHistory);
@@ -1575,11 +1721,12 @@ document.addEventListener("keydown", (event) => {
       return;
     }
 
-    if (document.body.classList.contains("history-drawer-open")) {
-      closeHistoryDrawer();
+    if (!historyDrawer.classList.contains("hidden")) {
+      showMainView("generate");
     }
   }
 });
+mountHistoryAsMainView();
 loadGenerationSettings();
 syncStyleDescription();
 attachPressFeedback();

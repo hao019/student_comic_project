@@ -6,7 +6,7 @@
     <title>基於大型語言模型與擴散模型之社群文案自動敘事插畫生成系統</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('assets', path='/ncut-seal.svg') }}">
     <link rel="apple-touch-icon" href="{{ url_for('assets', path='/ncut-seal.svg') }}">
-    <link rel="stylesheet" href="{{ url_for('assets', path='/style.css') }}?v=20260614-contain-all-thumbs">
+    <link rel="stylesheet" href="{{ url_for('assets', path='/style.css') }}?v=20260614-storyboard-object-fix">
   </head>
   <body>
     <main class="page-shell">
@@ -277,6 +277,7 @@
       <div class="comic-preview-header">
         <div class="comic-preview-actions">
           <h2 id="comic-preview-title">漫畫預覽</h2>
+          <button id="preview-analysis-button" class="preview-analysis-button" type="button">AI流程</button>
           <button id="preview-favorite-button" class="icon-button preview-favorite-button" type="button" aria-label="加入喜愛" title="加入喜愛">♡</button>
           <a id="preview-download-link" class="icon-button preview-download-button" href="#" download aria-label="下載漫畫">↓</a>
           <button id="close-preview-button" class="icon-button preview-back-button" type="button" aria-label="返回先前生成的漫畫">&gt;</button>
@@ -288,6 +289,6 @@
       </div>
     </section>
 
-    <script src="{{ url_for('assets', path='/app.js') }}?v=20260614-contain-all-thumbs" defer></script>
+    <script src="{{ url_for('assets', path='/app.js') }}?v=20260614-storyboard-object-fix" defer></script>
   </body>
 </html>

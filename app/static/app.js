@@ -61,6 +61,22 @@ const articleViewDialog = document.querySelector("#article-view-dialog");
 const articleViewTitle = document.querySelector("#article-view-title");
 const articleViewText = document.querySelector("#article-view-text");
 const closeArticleViewButton = document.querySelector("#close-article-view-button");
+const homeNavButton = document.querySelector("#home-nav-button");
+const libraryNavButton = document.querySelector("#library-nav-button");
+const analysisNavButton = document.querySelector("#analysis-nav-button");
+const generateView = document.querySelector("#generate-view");
+const analysisView = document.querySelector("#analysis-view");
+const analysisBackButton = document.querySelector("#analysis-back-button");
+const analysisEmpty = document.querySelector("#analysis-empty");
+const analysisContent = document.querySelector("#analysis-content");
+const analysisTitle = document.querySelector("#analysis-title");
+const analysisArticle = document.querySelector("#analysis-article");
+const analysisUnderstanding = document.querySelector("#analysis-understanding");
+const analysisPanels = document.querySelector("#analysis-panels");
+const analysisPrompt = document.querySelector("#analysis-prompt");
+const analysisFinalImage = document.querySelector("#analysis-final-image");
+const historyAllButton = document.querySelector("#history-all-button");
+const historyFavoritesButton = document.querySelector("#history-favorites-button");
 let progressTimer = null;
 let selectedComicFilename = "";
 let contextComic = null;
@@ -309,6 +325,7 @@ function resetResult() {
   summaryText.textContent = "";
   renderFidelityReport(null);
   currentStoryboard = null;
+  renderAiAnalysis();
   currentComicFilename = "";
   syncFavoriteButton();
   comicImage.removeAttribute("src");
@@ -421,6 +438,10 @@ function renameFavoriteComic(oldFilename, newFilename) {
 }
 
 function syncFavoriteButton() {
+  if (!favoriteResultButton) {
+    return;
+  }
+
   favoriteResultButton.classList.remove("hidden", "is-favorite");
   favoriteResultButton.textContent = "喜愛";
   favoriteResultButton.setAttribute("aria-label", "開啟喜愛漫畫");
@@ -493,6 +514,122 @@ function showComicPages(pageUrls, scrollUrl = "") {
 
   setCurrentComicFromUrl(displayUrl);
   showImage(displayUrl);
+  renderAiAnalysis();
+}
+
+function setActiveMainNav(activeButton) {
+  [homeNavButton, libraryNavButton, analysisNavButton]
+    .filter(Boolean)
+    .forEach((button) => button.classList.toggle("is-active", button === activeButton));
+}
+
+function showMainView(viewName = "generate") {
+  const isAnalysis = viewName === "analysis";
+  generateView?.classList.toggle("hidden", isAnalysis);
+  analysisView?.classList.toggle("hidden", !isAnalysis);
+  setActiveMainNav(isAnalysis ? analysisNavButton : homeNavButton);
+
+  if (isAnalysis) {
+    renderAiAnalysis();
+  }
+}
+
+function formatJsonBlock(value) {
+  return JSON.stringify(value, null, 2);
+}
+
+function getStoryboardTitle(storyboard) {
+  return storyboard?.title
+    || storyboard?.news_preprocess?.clean_title
+    || storyboard?.news_preprocess?.fetched_title
+    || "未命名新聞";
+}
+
+function getStoryboardArticle(storyboard) {
+  return getArticleFromStoryboard(storyboard)
+    || storyboard?.news_preprocess?.cleaned_content
+    || storyboard?.news_preprocess?.original_input
+    || "此作品沒有保存原始新聞內文。";
+}
+
+function getFinalComicUrl(storyboard) {
+  return storyboard?.comic_scroll_url
+    || storyboard?.comic_page_url
+    || (Array.isArray(storyboard?.comic_page_urls) ? storyboard.comic_page_urls[0] : "")
+    || comicImage?.getAttribute("src")
+    || "";
+}
+
+function renderAiAnalysis() {
+  if (!analysisEmpty || !analysisContent) {
+    return;
+  }
+
+  const storyboard = currentStoryboard;
+  const hasStoryboard = storyboard && typeof storyboard === "object";
+  analysisEmpty.classList.toggle("hidden", hasStoryboard);
+  analysisContent.classList.toggle("hidden", !hasStoryboard);
+
+  if (!hasStoryboard) {
+    return;
+  }
+
+  analysisTitle.textContent = getStoryboardTitle(storyboard);
+  analysisArticle.textContent = getStoryboardArticle(storyboard);
+
+  const understanding = {
+    news_type: storyboard.news_type || storyboard.theme || "",
+    tone: storyboard.tone || getMajorPanelEmotion(storyboard) || "",
+    story_shape: storyboard.story_shape || "",
+    summary: storyboard.summary || "",
+  };
+  analysisUnderstanding.textContent = formatJsonBlock(understanding);
+
+  analysisPanels.replaceChildren();
+  const panels = Array.isArray(storyboard.panels) ? storyboard.panels : [];
+  panels.forEach((panel, index) => {
+    const card = document.createElement("article");
+    card.className = "analysis-panel-card";
+
+    const title = document.createElement("strong");
+    title.textContent = `Panel ${panel.panel_id || index + 1}: ${panel.panel_title || panel.title || "分鏡"}`;
+
+    const pre = document.createElement("pre");
+    pre.className = "analysis-pre code-pre";
+    pre.textContent = formatJsonBlock({
+      panel_id: panel.panel_id || panel.panel || index + 1,
+      panel_title: panel.panel_title || panel.title || "",
+      visual: panel.visual || panel.scene || "",
+      speech: panel.speech || panel.dialogue || [],
+      callouts: panel.callouts || [],
+    });
+
+    card.append(title, pre);
+    analysisPanels.append(card);
+  });
+
+  if (!panels.length) {
+    const emptyPanels = document.createElement("p");
+    emptyPanels.textContent = "此作品沒有保存分鏡資料。";
+    analysisPanels.append(emptyPanels);
+  }
+
+  analysisPrompt.textContent = storyboard.page_prompt || "此作品沒有保存最終 prompt。";
+
+  const finalComicUrl = getFinalComicUrl(storyboard);
+  if (finalComicUrl) {
+    analysisFinalImage.src = finalComicUrl;
+    analysisFinalImage.classList.remove("hidden");
+  } else {
+    analysisFinalImage.removeAttribute("src");
+    analysisFinalImage.classList.add("hidden");
+  }
+}
+
+function getMajorPanelEmotion(storyboard) {
+  const panels = Array.isArray(storyboard?.panels) ? storyboard.panels : [];
+  const emotion = panels.find((panel) => panel.emotion)?.emotion;
+  return emotion || "";
 }
 
 function getErrorMessage(data, fallback) {
@@ -804,17 +941,22 @@ function setHistoryDrawerMode(mode) {
   historyMode = mode === "favorites" ? "favorites" : "history";
   const heading = historyDrawer.querySelector(".history-heading h2");
   const kicker = historyDrawer.querySelector(".panel-kicker");
+  const isFavorites = historyMode === "favorites";
 
   if (heading) {
-    heading.textContent = historyMode === "favorites" ? "喜愛漫畫" : "先前生成的漫畫";
+    heading.textContent = isFavorites ? "喜愛漫畫" : "先前生成的漫畫";
   }
   if (kicker) {
-    kicker.textContent = historyMode === "favorites" ? "Favorites" : "History";
+    kicker.textContent = isFavorites ? "Favorites" : "History";
   }
-  historyEmpty.textContent = historyMode === "favorites"
+  historyEmpty.textContent = isFavorites
     ? "目前還沒有加入喜愛的漫畫。"
     : "目前還沒有符合條件的漫畫。";
-  refreshHistoryButton.textContent = historyMode === "favorites" ? "重新整理喜愛" : "重新整理漫畫";
+  refreshHistoryButton.textContent = isFavorites ? "重新整理喜愛" : "重新整理漫畫";
+  historyAllButton?.classList.toggle("is-active", !isFavorites);
+  historyFavoritesButton?.classList.toggle("is-active", isFavorites);
+  historyAllButton?.setAttribute("aria-selected", String(!isFavorites));
+  historyFavoritesButton?.setAttribute("aria-selected", String(isFavorites));
 }
 
 function normalizeSearchText(value) {
@@ -1308,7 +1450,26 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
-openHistoryButton.addEventListener("click", () => openHistoryDrawer("history"));
+homeNavButton?.addEventListener("click", () => {
+  showMainView("generate");
+  setActiveMainNav(homeNavButton);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+libraryNavButton?.addEventListener("click", () => {
+  setActiveMainNav(libraryNavButton);
+  openHistoryDrawer("history");
+});
+analysisNavButton?.addEventListener("click", () => showMainView("analysis"));
+analysisBackButton?.addEventListener("click", () => showMainView("generate"));
+openHistoryButton?.addEventListener("click", () => openHistoryDrawer("history"));
+historyAllButton?.addEventListener("click", () => {
+  setHistoryDrawerMode("history");
+  rerenderCurrentHistory();
+});
+historyFavoritesButton?.addEventListener("click", () => {
+  setHistoryDrawerMode("favorites");
+  rerenderCurrentHistory();
+});
 toggleSettingsButton.addEventListener("click", () => {
   generationSettingsPanel.classList.toggle("hidden");
   toggleSettingsButton.classList.toggle(
@@ -1332,7 +1493,7 @@ clearInputButton.addEventListener("click", () => {
   articleInput.focus();
   errorMessage.textContent = "";
 });
-favoriteResultButton.addEventListener("click", () => {
+favoriteResultButton?.addEventListener("click", () => {
   openHistoryDrawer("favorites");
 });
 googleLogoutButton?.addEventListener("click", logoutGoogle);

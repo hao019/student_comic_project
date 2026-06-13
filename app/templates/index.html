@@ -38,7 +38,13 @@
         </div>
       </section>
 
-      <section class="demo-panel">
+      <nav class="main-nav" aria-label="主要導覽">
+        <button id="home-nav-button" class="nav-button is-active" type="button">首頁</button>
+        <button id="library-nav-button" class="nav-button" type="button">作品庫</button>
+        <button id="analysis-nav-button" class="nav-button" type="button">AI流程分析</button>
+      </nav>
+
+      <section id="generate-view" class="demo-panel">
         <form id="comic-form" class="input-panel">
           <div class="panel-heading">
             <div>
@@ -103,8 +109,6 @@
             <div class="result-tools">
               <a id="google-login-link" class="secondary-button history-button auth-button" href="/auth/google/login">Google 登入</a>
               <button id="google-logout-button" class="secondary-button history-button auth-button hidden" type="button">登出</button>
-              <button id="favorite-result-button" class="secondary-button history-button favorite-menu-button" type="button">喜愛</button>
-              <button id="open-history-button" class="secondary-button history-button" type="button">雲端漫畫</button>
             </div>
           </div>
           <p id="drive-status" class="drive-status" aria-live="polite">登入 Google 後，生成完成會自動存到你的 Drive。</p>
@@ -140,6 +144,66 @@
           </div>
         </section>
       </section>
+
+      <section id="analysis-view" class="analysis-view hidden" aria-label="AI生成流程分析">
+        <div class="analysis-heading">
+          <div>
+            <p class="panel-kicker">AI Pipeline</p>
+            <h2>AI生成流程分析</h2>
+          </div>
+          <button id="analysis-back-button" class="secondary-button compact-button" type="button">回到生成漫畫</button>
+        </div>
+
+        <div id="analysis-empty" class="analysis-empty">
+          <h3>尚未有可分析的生成結果</h3>
+          <p>請先生成一篇漫畫，或從作品庫選取既有作品，再回到這裡查看完整 AI 流程。</p>
+        </div>
+
+        <div id="analysis-content" class="analysis-content hidden">
+          <article class="analysis-step">
+            <div class="analysis-step-label">Step 1</div>
+            <h3>原始新聞</h3>
+            <dl class="analysis-meta">
+              <div>
+                <dt>標題</dt>
+                <dd id="analysis-title"></dd>
+              </div>
+            </dl>
+            <pre id="analysis-article" class="analysis-pre"></pre>
+          </article>
+
+          <article class="analysis-step">
+            <div class="analysis-step-label">Step 2</div>
+            <h3>新聞理解</h3>
+            <pre id="analysis-understanding" class="analysis-pre code-pre"></pre>
+          </article>
+
+          <article class="analysis-step">
+            <div class="analysis-step-label">Step 3</div>
+            <h3>分鏡結果</h3>
+            <div id="analysis-panels" class="analysis-panels"></div>
+          </article>
+
+          <article class="analysis-step">
+            <div class="analysis-step-label">Step 4</div>
+            <h3>Prompt Builder</h3>
+            <pre id="analysis-prompt" class="analysis-pre prompt-pre"></pre>
+          </article>
+
+          <article class="analysis-step">
+            <div class="analysis-step-label">Step 5</div>
+            <h3>最終漫畫</h3>
+            <div class="analysis-final-flow" aria-label="Prompt 到 Gemini Image 到漫畫">
+              <span>Prompt</span>
+              <span>Gemini Image</span>
+              <span>漫畫</span>
+            </div>
+            <div id="analysis-final-image-frame" class="analysis-final-image-frame">
+              <img id="analysis-final-image" alt="AI 生成的最終漫畫">
+            </div>
+          </article>
+        </div>
+      </section>
     </main>
 
     <div id="toast-stack" class="toast-stack" aria-live="polite" aria-atomic="true"></div>
@@ -161,6 +225,10 @@
 
       <button id="refresh-history-button" class="secondary-button drawer-refresh-button" type="button">重新整理</button>
       <div class="history-controls" aria-label="歷史漫畫篩選">
+        <div class="history-mode-tabs" role="tablist" aria-label="作品庫檢視">
+          <button id="history-all-button" class="history-mode-tab is-active" type="button" role="tab" aria-selected="true">全部作品</button>
+          <button id="history-favorites-button" class="history-mode-tab" type="button" role="tab" aria-selected="false">喜愛作品</button>
+        </div>
         <label class="history-search-label" for="history-search-input">搜尋漫畫</label>
         <input id="history-search-input" class="history-search-input" type="search" placeholder="搜尋標題、分類或摘要" autocomplete="off">
         <div id="history-category-tabs" class="history-category-tabs" role="list" aria-label="漫畫分類"></div>

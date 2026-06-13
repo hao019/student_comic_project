@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>基於大型語言模型與擴散模型之社群文案自動敘事插畫生成系統</title>
-    <link rel="stylesheet" href="{{ url_for('assets', path='/style.css') }}?v=20260612-comic-style-desc">
+    <link rel="stylesheet" href="{{ url_for('assets', path='/style.css') }}?v=20260613-larger-workspace">
   </head>
   <body>
     <main class="page-shell">
@@ -140,6 +140,8 @@
       </section>
     </main>
 
+    <div id="toast-stack" class="toast-stack" aria-live="polite" aria-atomic="true"></div>
+
     <div id="history-overlay" class="history-overlay hidden"></div>
     <aside
       id="history-drawer"
@@ -211,6 +213,6 @@
       </div>
     </section>
 
-    <script src="{{ url_for('assets', path='/app.js') }}?v=20260612-comic-style-desc" defer></script>
+    <script src="{{ url_for('assets', path='/app.js') }}?v=20260613-larger-workspace" defer></script>
   </body>
 </html>

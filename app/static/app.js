@@ -9,6 +9,7 @@ const styleDescription = document.querySelector("#style-description");
 const generateButton = document.querySelector("#generate-button");
 const statusMessage = document.querySelector("#status-message");
 const errorMessage = document.querySelector("#error-message");
+const toastStack = document.querySelector("#toast-stack");
 const resultSection = document.querySelector("#result-section");
 const summaryText = document.querySelector("#summary-text");
 const fidelityReportBlock = document.querySelector("#fidelity-report-block");
@@ -68,6 +69,24 @@ let historyMode = "history";
 let allComicsCache = [];
 let previewControlsTimer = null;
 let selectedComicHasArticle = false;
+
+function showToast(message, variant = "status", duration = 3600) {
+  if (!toastStack || !message) {
+    return;
+  }
+
+  const toast = document.createElement("div");
+  toast.className = `toast-message is-${variant}`;
+  toast.textContent = message;
+  toastStack.append(toast);
+
+  window.requestAnimationFrame(() => toast.classList.add("is-visible"));
+  window.setTimeout(() => {
+    toast.classList.add("is-leaving");
+    toast.classList.remove("is-visible");
+    window.setTimeout(() => toast.remove(), 850);
+  }, duration);
+}
 let selectedComicDownloadUrl = "";
 
 const progressLabels = [
@@ -114,6 +133,7 @@ async function loadSampleArticle() {
   sampleArticleButton.textContent = "產生中...";
   errorMessage.textContent = "";
   statusMessage.textContent = "正在產生隨機範例文章...";
+  showToast("正在產生隨機範例文章...", "status", 2200);
 
   try {
     const response = await fetch("/api/story/sample-article");
@@ -126,10 +146,12 @@ async function loadSampleArticle() {
     const title = data.title ? `${data.title}\n\n` : "";
     articleInput.value = `${title}${data.article || sampleArticle}`.trim();
     statusMessage.textContent = "已產生新的範例文章";
+    showToast("已產生新的範例文章", "success");
   } catch (error) {
     console.error(error);
     articleInput.value = sampleArticle;
     errorMessage.textContent = "範例文章產生失敗，已改用本地範例。";
+    showToast("範例文章產生失敗，已改用本地範例。", "error");
     statusMessage.textContent = "";
   } finally {
     sampleArticleButton.disabled = false;
@@ -204,6 +226,7 @@ function setLoading(isLoading) {
   if (isLoading) {
     resultPlaceholder.classList.remove("hidden");
     resultPlaceholder.querySelector("p").textContent = "AI 正在分析文章並合成最終漫畫圖...";
+    showToast("AI 正在分析文章並合成最終漫畫圖...", "status", 2600);
   }
 }
 
@@ -256,6 +279,7 @@ function finishProgress(wasSuccessful) {
       item.classList.remove("is-active");
     });
     statusMessage.textContent = "漫畫生成完成";
+    showToast("漫畫生成完成", "success");
     window.setTimeout(() => generationProgress.classList.add("hidden"), 900);
   } else {
     generationProgress.classList.add("hidden");
@@ -400,29 +424,16 @@ function revealPreviewControls() {
 }
 
 function collapsePreviewControls() {
-  if (!document.body.classList.contains("comic-preview-open")) {
-    return;
-  }
-
-  comicPreviewHeader.classList.add("is-collapsed");
+  revealPreviewControls();
 }
 
 function schedulePreviewControlsCollapse(delay = 2600) {
   clearTimeout(previewControlsTimer);
-  previewControlsTimer = window.setTimeout(collapsePreviewControls, delay);
+  revealPreviewControls();
 }
 
 function handlePreviewPointerMove(event) {
-  if (!document.body.classList.contains("comic-preview-open")) {
-    return;
-  }
-
-  const nearRightEdge = event.clientX >= window.innerWidth - 96;
-  const nearTop = event.clientY <= 132;
-  if (nearRightEdge && nearTop) {
-    revealPreviewControls();
-    schedulePreviewControlsCollapse();
-  }
+  revealPreviewControls();
 }
 
 function setCurrentComicFromUrl(imageUrl) {
@@ -826,7 +837,6 @@ function openComicPreview(imageUrl, title, hasArticle = true, downloadUrl = "") 
     viewOriginalArticle(selectedComicFilename || currentComicFilename, comicPreviewTitle.textContent);
   }
   revealPreviewControls();
-  schedulePreviewControlsCollapse(3200);
 }
 
 function closeComicPreview() {
@@ -893,6 +903,7 @@ async function selectHistoryComic(comic) {
   }
 
   summaryText.textContent = "已選取先前生成的漫畫。";
+  showToast("已選取先前生成的漫畫。", "summary");
   renderFidelityReport(currentStoryboard?.story_fidelity_report);
   resultSection.classList.remove("hidden");
   resultPlaceholder.classList.add("hidden");
@@ -1100,6 +1111,7 @@ form.addEventListener("submit", async (event) => {
   const article = articleInput.value.trim();
   if (!article) {
     errorMessage.textContent = "請先輸入文章或社群文案";
+    showToast("請先輸入文章或社群文案", "error");
     return;
   }
 
@@ -1129,6 +1141,7 @@ form.addEventListener("submit", async (event) => {
     }
 
     summaryText.textContent = data.summary || data.title || "已完成漫畫生成";
+    showToast(summaryText.textContent, "summary", 5200);
     currentStoryboard = data.storyboard || null;
     renderFidelityReport(data.story_fidelity_report || currentStoryboard?.story_fidelity_report);
     resultSection.classList.remove("hidden");
@@ -1140,6 +1153,7 @@ form.addEventListener("submit", async (event) => {
   } catch (error) {
     console.error(error);
     errorMessage.textContent = error.message || "生成失敗，請稍後再試";
+    showToast(errorMessage.textContent, "error", 5200);
     resultPlaceholder.classList.remove("hidden");
     resultPlaceholder.querySelector("p").textContent = "生成失敗，請調整輸入內容後再試一次。";
   } finally {
@@ -1185,21 +1199,6 @@ previewFavoriteButton.addEventListener("click", () => {
   syncPreviewFavoriteButton();
   rerenderCurrentHistory();
 });
-comicPreviewActions.addEventListener("mouseenter", () => {
-  revealPreviewControls();
-  clearTimeout(previewControlsTimer);
-});
-comicPreviewActions.addEventListener("mouseleave", () => {
-  schedulePreviewControlsCollapse(1200);
-});
-comicPreviewActions.addEventListener("focusin", () => {
-  revealPreviewControls();
-  clearTimeout(previewControlsTimer);
-});
-comicPreviewActions.addEventListener("focusout", () => {
-  schedulePreviewControlsCollapse(1200);
-});
-document.addEventListener("mousemove", handlePreviewPointerMove);
 comicImage.addEventListener("click", openCurrentResultPreview);
 closeHistoryButton.addEventListener("click", closeHistoryDrawer);
 historyOverlay.addEventListener("click", closeHistoryDrawer);

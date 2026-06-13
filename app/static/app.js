@@ -27,6 +27,8 @@ const comicHistory = document.querySelector("#comic-history");
 const historyStatus = document.querySelector("#history-status");
 const historyEmpty = document.querySelector("#history-empty");
 const refreshHistoryButton = document.querySelector("#refresh-history-button");
+const historySearchInput = document.querySelector("#history-search-input");
+const historyCategoryTabs = document.querySelector("#history-category-tabs");
 const openHistoryButton = document.querySelector("#open-history-button");
 const favoriteResultButton = document.querySelector("#favorite-result-button");
 const closeHistoryButton = document.querySelector("#close-history-button");
@@ -67,6 +69,7 @@ let currentStoryboard = null;
 let currentComicFilename = "";
 let historyMode = "history";
 let allComicsCache = [];
+let activeHistoryCategory = "all";
 let previewControlsTimer = null;
 let selectedComicHasArticle = false;
 
@@ -100,6 +103,19 @@ const progressStepThresholds = [0, 22, 55, 78];
 const estimatedGenerationMs = 52000;
 const settingsStorageKey = "comicGenerationSettings";
 const favoritesStorageKey = "favoriteComics";
+const historyCategories = [
+  { id: "all", label: "全部", keywords: [] },
+  { id: "lifestyle", label: "生活", keywords: ["生活", "天氣", "交通", "教育", "校園", "消費", "美食", "旅遊"] },
+  { id: "politics", label: "政治", keywords: ["政治", "總統", "立法院", "行政院", "監察院", "選舉", "政黨", "市長", "川普"] },
+  { id: "society", label: "社會", keywords: ["社會", "司法", "法院", "檢調", "警", "災", "事故", "案件"] },
+  { id: "health", label: "健康", keywords: ["健康", "醫院", "醫療", "登革熱", "疫", "衛生", "公衛", "病"] },
+  { id: "finance", label: "財經", keywords: ["財經", "商業", "投資", "市場", "IPO", "證券", "股", "經濟"] },
+  { id: "entertainment", label: "娛樂", keywords: ["娛樂", "藝人", "男團", "影視", "明星", "表志勳"] },
+  { id: "international", label: "國際", keywords: ["國際", "中國", "美國", "伊朗", "SpaceX", "外交"] },
+  { id: "sports", label: "體育", keywords: ["體育", "棒球", "籃球", "足球", "賽", "選手"] },
+  { id: "warm", label: "暖聞", keywords: ["暖聞", "善心", "公益", "感人", "助人", "溫馨"] },
+  { id: "auto", label: "車訊", keywords: ["車訊", "汽車", "電動車", "機車", "車廠", "車款"] },
+];
 const comicStylePresets = [
   "default",
   "monochrome_draft",
@@ -761,6 +777,29 @@ async function viewOriginalArticle(filename, fallbackTitle = "") {
   }
 }
 
+function renderHistoryCategoryTabs() {
+  if (!historyCategoryTabs) {
+    return;
+  }
+
+  historyCategoryTabs.replaceChildren();
+
+  historyCategories.forEach((category) => {
+    const button = document.createElement("button");
+    button.className = "history-category-tab";
+    button.type = "button";
+    button.textContent = category.label;
+    button.classList.toggle("is-active", category.id === activeHistoryCategory);
+    button.setAttribute("aria-pressed", category.id === activeHistoryCategory ? "true" : "false");
+    button.addEventListener("click", () => {
+      activeHistoryCategory = category.id;
+      renderHistoryCategoryTabs();
+      rerenderCurrentHistory();
+    });
+    historyCategoryTabs.append(button);
+  });
+}
+
 function setHistoryDrawerMode(mode) {
   historyMode = mode === "favorites" ? "favorites" : "history";
   const heading = historyDrawer.querySelector(".history-heading h2");
@@ -774,25 +813,123 @@ function setHistoryDrawerMode(mode) {
   }
   historyEmpty.textContent = historyMode === "favorites"
     ? "目前還沒有加入喜愛的漫畫。"
-    : "目前 Google Drive 裡還沒有可查看的漫畫。";
-  refreshHistoryButton.textContent = historyMode === "favorites" ? "重新整理喜愛" : "重新整理雲端";
+    : "目前還沒有符合條件的漫畫。";
+  refreshHistoryButton.textContent = historyMode === "favorites" ? "重新整理喜愛" : "重新整理漫畫";
+}
+
+function normalizeSearchText(value) {
+  return String(value || "").toLowerCase();
+}
+
+function getLooseSearchTerms(query) {
+  const normalizedQuery = normalizeSearchText(query).trim();
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  const spacedTerms = normalizedQuery.split(/\s+/).filter(Boolean);
+  if (spacedTerms.length > 1) {
+    return spacedTerms;
+  }
+
+  if (normalizedQuery.length <= 2) {
+    return [normalizedQuery];
+  }
+
+  const terms = [normalizedQuery];
+  for (let index = 0; index < normalizedQuery.length - 1; index += 1) {
+    terms.push(normalizedQuery.slice(index, index + 2));
+  }
+
+  return [...new Set(terms)];
+}
+
+function hasLooseCharacterMatch(searchText, query) {
+  const queryChars = [...new Set([...normalizeSearchText(query).replace(/\s+/g, "")])];
+  if (queryChars.length < 3) {
+    return false;
+  }
+
+  const hitCount = queryChars.filter((char) => searchText.includes(char)).length;
+  return hitCount >= Math.ceil(queryChars.length * 0.6);
+}
+
+function getComicSearchText(comic) {
+  return normalizeSearchText([
+    comic?.filename,
+    comic?.title,
+    comic?.category,
+    comic?.news_type,
+    comic?.theme,
+    comic?.summary,
+    comic?.storage,
+  ].filter(Boolean).join(" "));
+}
+
+function getComicCategory(comic) {
+  const searchText = getComicSearchText(comic);
+  const matchedCategory = historyCategories
+    .filter((category) => category.id !== "all")
+    .find((category) => category.keywords.some((keyword) => searchText.includes(normalizeSearchText(keyword))));
+
+  return matchedCategory?.id || "";
+}
+
+function getHistoryCategoryLabel(categoryId) {
+  return historyCategories.find((category) => category.id === categoryId)?.label || "全部";
+}
+
+function matchesHistoryCategory(comic) {
+  if (activeHistoryCategory === "all") {
+    return true;
+  }
+
+  return getComicCategory(comic) === activeHistoryCategory;
+}
+
+function matchesHistorySearch(comic) {
+  const rawQuery = historySearchInput?.value || "";
+  const queryTerms = getLooseSearchTerms(rawQuery);
+  if (!queryTerms.length) {
+    return true;
+  }
+
+  const searchText = getComicSearchText(comic);
+  return queryTerms.some((term) => searchText.includes(term)) || hasLooseCharacterMatch(searchText, rawQuery);
 }
 
 function getVisibleComics(comics) {
-  if (historyMode !== "favorites") {
-    return comics;
+  let visibleComics = comics;
+
+  if (historyMode === "favorites") {
+    const favoriteComics = loadFavoriteComics();
+    visibleComics = visibleComics.filter((comic) => favoriteComics.includes(comic.filename));
   }
 
-  const favoriteComics = loadFavoriteComics();
-  return comics.filter((comic) => favoriteComics.includes(comic.filename));
+  return visibleComics
+    .filter(matchesHistoryCategory)
+    .filter(matchesHistorySearch);
 }
 
 function rerenderCurrentHistory() {
   const visibleComics = getVisibleComics(allComicsCache);
   renderComicHistory(visibleComics);
-  historyStatus.textContent = historyMode === "favorites"
-    ? (visibleComics.length ? `共 ${visibleComics.length} 張喜愛漫畫` : "")
-    : (allComicsCache.length ? `共 ${allComicsCache.length} 張漫畫` : "");
+  const baseComics = historyMode === "favorites"
+    ? allComicsCache.filter((comic) => loadFavoriteComics().includes(comic.filename))
+    : allComicsCache;
+  const filters = [];
+  const query = historySearchInput?.value.trim();
+
+  if (activeHistoryCategory !== "all") {
+    filters.push(getHistoryCategoryLabel(activeHistoryCategory));
+  }
+  if (query) {
+    filters.push(`搜尋「${query}」`);
+  }
+
+  historyStatus.textContent = baseComics.length
+    ? `共 ${visibleComics.length} / ${baseComics.length} 張漫畫${filters.length ? `（${filters.join("、")}）` : ""}`
+    : "";
 }
 
 function openHistoryDrawer(mode = "history") {
@@ -1027,6 +1164,7 @@ function renderComicHistory(comics) {
   const favoriteComics = loadFavoriteComics();
 
   for (const comic of comics) {
+    const categoryLabel = getHistoryCategoryLabel(getComicCategory(comic));
     const card = document.createElement("article");
     card.className = "history-card";
 
@@ -1064,6 +1202,10 @@ function renderComicHistory(comics) {
     const name = document.createElement("span");
     name.textContent = comic.filename;
 
+    const category = document.createElement("span");
+    category.className = "history-card-category";
+    category.textContent = categoryLabel;
+
     const date = document.createElement("time");
     const pageLabel = comic.page_count > 1 ? ` · ${comic.page_count} 頁` : "";
     const storageLabel = comic.storage === "drive" ? " · 雲端" : "";
@@ -1071,7 +1213,11 @@ function renderComicHistory(comics) {
       ? `${formatComicDate(comic.created_at)} · 可編輯${pageLabel}${storageLabel}`
       : `${formatComicDate(comic.created_at)}${pageLabel}${storageLabel}`;
 
-    meta.append(name, date);
+    meta.append(name);
+    if (categoryLabel) {
+      meta.append(category);
+    }
+    meta.append(date);
     button.append(image, meta);
     card.append(button, favoriteButton);
     comicHistory.append(card);
@@ -1203,6 +1349,7 @@ comicImage.addEventListener("click", openCurrentResultPreview);
 closeHistoryButton.addEventListener("click", closeHistoryDrawer);
 historyOverlay.addEventListener("click", closeHistoryDrawer);
 refreshHistoryButton.addEventListener("click", loadComicHistory);
+historySearchInput?.addEventListener("input", rerenderCurrentHistory);
 comicPreviewOverlay.addEventListener("click", closeComicPreview);
 closePreviewButton.addEventListener("click", returnToComicHistory);
 dismissPreviewButton.addEventListener("click", closeComicPreview);
@@ -1275,5 +1422,6 @@ document.addEventListener("keydown", (event) => {
 loadGenerationSettings();
 syncStyleDescription();
 attachPressFeedback();
+renderHistoryCategoryTabs();
 syncGoogleAuthStatus();
 loadComicHistory();

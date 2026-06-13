@@ -486,8 +486,18 @@ def get_local_comics() -> list[dict]:
                 page_urls = storyboard.get("comic_page_urls") or []
                 page_count = max(1, len(page_urls))
                 has_article = bool(extract_source_article(storyboard))
+                title = str(storyboard.get("title") or "").strip()
+                category = str(storyboard.get("news_type") or storyboard.get("theme") or "").strip()
+                summary = str(storyboard.get("summary") or "").strip()
             except (json.JSONDecodeError, OSError):
                 page_count = 1
+                title = ""
+                category = ""
+                summary = ""
+        else:
+            title = ""
+            category = ""
+            summary = ""
 
         comics.append(
             {
@@ -499,6 +509,10 @@ def get_local_comics() -> list[dict]:
                 "editable": data_path.exists(),
                 "has_article": has_article,
                 "storage": "local",
+                "title": title,
+                "category": category,
+                "news_type": category,
+                "summary": summary,
             }
         )
 
@@ -508,7 +522,7 @@ def get_local_comics() -> list[dict]:
 
 @app.get("/api/comics/history")
 def get_comic_history(request: Request):
-    comics = []
+    comics = get_local_comics()
     drive_error = None
     token_data = get_session(request).get("google_token")
 
@@ -516,7 +530,12 @@ def get_comic_history(request: Request):
         try:
             drive_result = list_comic_bundles(token_data)
             update_google_token(request, drive_result.pop("token_data", None))
-            comics.extend(drive_result.get("comics", []))
+            local_filenames = {comic["filename"] for comic in comics}
+            comics.extend(
+                comic
+                for comic in drive_result.get("comics", [])
+                if comic.get("filename") not in local_filenames
+            )
         except Exception as e:
             drive_error = str(e)
 

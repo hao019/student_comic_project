@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>基於大型語言模型與擴散模型之社群文案自動敘事插畫生成系統</title>
-    <link rel="stylesheet" href="{{ url_for('assets', path='/style.css') }}?v=20260613-larger-workspace">
+    <link rel="stylesheet" href="{{ url_for('assets', path='/style.css') }}?v=20260614-contain-all-thumbs">
   </head>
   <body>
     <main class="page-shell">
@@ -158,6 +158,11 @@
       </div>
 
       <button id="refresh-history-button" class="secondary-button drawer-refresh-button" type="button">重新整理</button>
+      <div class="history-controls" aria-label="歷史漫畫篩選">
+        <label class="history-search-label" for="history-search-input">搜尋漫畫</label>
+        <input id="history-search-input" class="history-search-input" type="search" placeholder="搜尋標題、分類或摘要" autocomplete="off">
+        <div id="history-category-tabs" class="history-category-tabs" role="list" aria-label="漫畫分類"></div>
+      </div>
       <p id="history-status" class="history-status" aria-live="polite"></p>
       <div id="history-empty" class="history-empty hidden">目前 Google Drive 裡還沒有可查看的漫畫。</div>
       <div id="comic-history" class="comic-history" aria-live="polite"></div>
@@ -213,6 +218,6 @@
       </div>
     </section>
 
-    <script src="{{ url_for('assets', path='/app.js') }}?v=20260613-larger-workspace" defer></script>
+    <script src="{{ url_for('assets', path='/app.js') }}?v=20260614-contain-all-thumbs" defer></script>
   </body>
 </html>

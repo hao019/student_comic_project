@@ -217,8 +217,17 @@ def _drive_timestamp_to_epoch(value: str | None) -> float:
 def list_comic_bundles(token_data: dict[str, Any]) -> dict[str, Any]:
     service, credentials = _drive_service(token_data)
     folder_id = _ensure_app_folder(service)
-    images = _query_files_in_folder(service, folder_id, "image/png")
-    json_files = _query_files_in_folder(service, folder_id, "application/json")
+    folder_files = _query_files_in_folder(service, folder_id)
+    images = [
+        file
+        for file in folder_files
+        if str(file.get("mimeType") or "").startswith("image/")
+    ]
+    json_files = [
+        file
+        for file in folder_files
+        if file.get("mimeType") == "application/json"
+    ]
     json_by_stem = {Path(file["name"]).stem: file for file in json_files}
 
     comics = []

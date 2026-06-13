@@ -51,7 +51,7 @@ class ComicRenameInput(BaseModel):
 def get_session(request: Request) -> dict:
     session_id = request.cookies.get(SESSION_COOKIE)
     if not session_id:
-        return {}
+        return load_single_saved_google_auth() or {}
 
     session = SESSION_STORE.get(session_id)
     if session is not None:
@@ -61,6 +61,10 @@ def get_session(request: Request) -> dict:
     email = request.cookies.get(GOOGLE_EMAIL_COOKIE)
     if email:
         saved_auth = load_saved_google_auth(email)
+        if saved_auth:
+            session.update(saved_auth)
+    else:
+        saved_auth = load_single_saved_google_auth()
         if saved_auth:
             session.update(saved_auth)
 
@@ -130,6 +134,30 @@ def load_saved_google_auth(email: str) -> dict | None:
 
     token_data = payload.get("google_token")
     if not isinstance(token_data, dict):
+        return None
+
+    return {
+        "google_token": token_data,
+        "google_user": payload.get("google_user") or {"email": email},
+    }
+
+
+def load_single_saved_google_auth() -> dict | None:
+    if not TOKEN_DIR.exists():
+        return None
+
+    token_files = list(TOKEN_DIR.glob("*.json"))
+    if len(token_files) != 1:
+        return None
+
+    try:
+        payload = json.loads(token_files[0].read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    email = str(payload.get("email") or "").strip()
+    token_data = payload.get("google_token")
+    if not email or not isinstance(token_data, dict):
         return None
 
     return {
@@ -412,7 +440,7 @@ def get_local_comics() -> list[dict]:
 
 @app.get("/api/comics/history")
 def get_comic_history(request: Request):
-    comics = get_local_comics()
+    comics = []
     drive_error = None
     token_data = get_session(request).get("google_token")
 
@@ -420,13 +448,7 @@ def get_comic_history(request: Request):
         try:
             drive_result = list_comic_bundles(token_data)
             update_google_token(request, drive_result.pop("token_data", None))
-            local_names = {comic["filename"] for comic in comics}
-            drive_comics = [
-                comic
-                for comic in drive_result.get("comics", [])
-                if comic["filename"] not in local_names
-            ]
-            comics.extend(drive_comics)
+            comics.extend(drive_result.get("comics", []))
         except Exception as e:
             drive_error = str(e)
 

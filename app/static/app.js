@@ -763,8 +763,8 @@ function setHistoryDrawerMode(mode) {
   }
   historyEmpty.textContent = historyMode === "favorites"
     ? "目前還沒有加入喜愛的漫畫。"
-    : "目前還沒有可查看的漫畫。";
-  refreshHistoryButton.textContent = historyMode === "favorites" ? "重新整理喜愛" : "重新整理";
+    : "目前 Google Drive 裡還沒有可查看的漫畫。";
+  refreshHistoryButton.textContent = historyMode === "favorites" ? "重新整理喜愛" : "重新整理雲端";
 }
 
 function getVisibleComics(comics) {
@@ -1068,7 +1068,7 @@ function renderComicHistory(comics) {
 }
 
 async function loadComicHistory() {
-  historyStatus.textContent = historyMode === "favorites" ? "載入喜愛漫畫中..." : "載入歷史漫畫中...";
+  historyStatus.textContent = historyMode === "favorites" ? "載入喜愛漫畫中..." : "載入 Google Drive 漫畫中...";
   refreshHistoryButton.disabled = true;
 
   try {

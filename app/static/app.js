@@ -146,28 +146,28 @@ const sampleArticle = `校園科技社今天舉辦「AI 創意漫畫工作坊」
 async function loadSampleArticle() {
   const originalText = sampleArticleButton.textContent;
   sampleArticleButton.disabled = true;
-  sampleArticleButton.textContent = "產生中...";
+  sampleArticleButton.textContent = "抓取中...";
   errorMessage.textContent = "";
-  statusMessage.textContent = "正在產生隨機範例文章...";
-  showToast("正在產生隨機範例文章...", "status", 2200);
+  statusMessage.textContent = "正在從 Google 新聞抓取隨機焦點新聞...";
+  showToast("正在從 Google 新聞抓取隨機焦點新聞...", "status", 2200);
 
   try {
     const response = await fetch("/api/story/sample-article");
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(getErrorMessage(data, "範例文章產生失敗"));
+      throw new Error(getErrorMessage(data, "Google 焦點新聞抓取失敗"));
     }
 
     const title = data.title ? `${data.title}\n\n` : "";
     articleInput.value = `${title}${data.article || sampleArticle}`.trim();
-    statusMessage.textContent = "已產生新的範例文章";
-    showToast("已產生新的範例文章", "success");
+    statusMessage.textContent = "已抓取一則 Google 焦點新聞";
+    showToast("已抓取一則 Google 焦點新聞", "success");
   } catch (error) {
     console.error(error);
     articleInput.value = sampleArticle;
-    errorMessage.textContent = "範例文章產生失敗，已改用本地範例。";
-    showToast("範例文章產生失敗，已改用本地範例。", "error");
+    errorMessage.textContent = "Google 焦點新聞抓取失敗，已改用本地範例。";
+    showToast("Google 焦點新聞抓取失敗，已改用本地範例。", "error");
     statusMessage.textContent = "";
   } finally {
     sampleArticleButton.disabled = false;

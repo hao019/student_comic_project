@@ -4,7 +4,8 @@ from pathlib import Path
 
 from app.schemas import NewsComicPageScript
 from app.services.gemini_image_service import generate_comic_page_image
-from app.services.google_llm_service import generate_news_comic_page_script, generate_sample_article
+from app.services.google_llm_service import generate_news_comic_page_script
+from app.services.google_news_service import fetch_random_google_focus_article
 from app.services.prompt_builder import build_page_prompt
 
 
@@ -93,14 +94,15 @@ def generate_full_comic_from_news(news, generation_settings=None, source_article
 
 
 def generate_random_sample_article() -> dict:
-    sample = generate_sample_article()
-    title = str(sample.get("title") or "隨機範例新聞").strip()
+    sample = fetch_random_google_focus_article()
+    title = str(sample.get("title") or "隨機焦點新聞").strip()
     article = str(sample.get("article") or "").strip()
 
     if not article:
-        raise ValueError("Gemini returned an empty sample article.")
+        raise ValueError("Google News returned an empty article.")
 
     return {
+        **sample,
         "title": title,
         "article": article,
     }

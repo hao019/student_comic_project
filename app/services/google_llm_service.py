@@ -144,3 +144,40 @@ Return ONLY valid JSON with this shape:
 The article should be 180 to 260 Chinese characters and suitable for students.
 """
     return generate_json(prompt)
+
+
+def generate_article_from_google_news_digest(title: str, source: str, digest: str) -> dict:
+    prompt = f"""
+You are a Traditional Chinese news editor.
+
+Rewrite this Google News focus digest into ONE clean short news article for a
+student news-to-comic generator.
+
+Return ONLY valid JSON. Do not use Markdown fences.
+
+Rules:
+- Use Traditional Chinese.
+- The article must be 160 to 260 Chinese characters.
+- Write like a normal news article, not a list.
+- Do not include metadata labels such as 來源, 發布時間, 相關報導, Google 新聞, RSS.
+- Do not invent facts beyond the headline and digest.
+- If the digest only contains related headlines, cautiously phrase it as
+  "多家媒體報導指出..." or "報導聚焦...".
+- Keep allegations, disputes, legal, financial, medical, and political topics cautious.
+
+Return this exact JSON shape:
+{{
+  "title": "整理後新聞標題",
+  "article": "整理後新聞正文"
+}}
+
+Main headline:
+{title}
+
+Primary source:
+{source}
+
+Digest:
+{digest}
+"""
+    return generate_json(prompt)

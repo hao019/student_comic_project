@@ -25,6 +25,8 @@ from app.services.google_drive_service import (
     upload_comic_bundle,
     write_drive_metadata,
 )
+from app.services.article_fetcher import ArticleFetchError, fetch_news_article, looks_like_url
+from app.services.news_cleaner import CleanedArticle, clean_copied_news_article
 from app.services.story_service import generate_full_comic_from_news, generate_random_sample_article
 
 
@@ -211,6 +213,16 @@ def maybe_upload_storyboard_to_drive(request: Request, storyboard: dict) -> dict
     return drive_upload
 
 
+def persist_storyboard(storyboard: dict) -> None:
+    _, storyboard_path = get_drive_paths(storyboard)
+    if not storyboard_path:
+        return
+    storyboard_path.write_text(
+        json.dumps(storyboard, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
 def get_google_token_or_401(request: Request) -> dict:
     session = get_session(request)
     token_data = session.get("google_token")
@@ -230,16 +242,72 @@ def update_google_token(request: Request, token_data: dict | None) -> None:
             save_google_auth(email, token_data, session.get("google_user"))
 
 
-def article_to_news_input(article: str) -> NewsInput:
-    text = article.strip()
-    title = next((line.strip() for line in text.splitlines() if line.strip()), "")
-    title = title[:40] or "AI 新聞漫畫"
+def article_to_news_input(article: str | CleanedArticle) -> NewsInput:
+    if isinstance(article, CleanedArticle):
+        title = article.title[:40] or "AI 新聞漫畫"
+        content = article.text
+    else:
+        text = article.strip()
+        title = next((line.strip() for line in text.splitlines() if line.strip()), "")
+        title = title[:40] or "AI 新聞漫畫"
+        content = text
 
-    content = text
     if len(content) < 10:
         content = f"{content}\n請根據這段文字整理成一則清楚的新聞漫畫。"
 
     return NewsInput(title=title, content=content)
+
+
+def resolve_article_source(article: str) -> tuple[str, dict]:
+    text = article.strip()
+    if not looks_like_url(text):
+        return text, {"input_type": "text"}
+
+    try:
+        fetched_article = fetch_news_article(text)
+    except ArticleFetchError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return fetched_article.article_text, {
+        "input_type": "url",
+        "source_url": fetched_article.url,
+        "fetched_title": fetched_article.title,
+    }
+
+
+def generate_cleaned_storyboard(data: ArticleInput, request: Request) -> tuple[NewsInput, dict, dict | None, str | None]:
+    source_article, source_metadata = resolve_article_source(data.article)
+    cleaned_article = clean_copied_news_article(source_article)
+    news = article_to_news_input(cleaned_article)
+    try:
+        storyboard = generate_full_comic_from_news(
+            news,
+            generation_settings=data.generation_settings,
+            source_article=cleaned_article.text,
+        )
+    except GeminiImageGenerationError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    storyboard["original_article"] = source_article.strip()
+    storyboard["news_preprocess"] = {
+        **source_metadata,
+        "original_input": data.article.strip(),
+        "clean_title": cleaned_article.title,
+        "cleaned_content": cleaned_article.content,
+        "removed_line_count": len(cleaned_article.removed_lines),
+        "removed_lines": cleaned_article.removed_lines[:30],
+    }
+
+    drive_upload = None
+    drive_upload_error = None
+    try:
+        drive_upload = maybe_upload_storyboard_to_drive(request, storyboard)
+    except Exception as e:
+        drive_upload_error = str(e)
+
+    persist_storyboard(storyboard)
+
+    return news, storyboard, drive_upload, drive_upload_error
 
 
 def get_major_emotion(storyboard: dict) -> str:
@@ -644,22 +712,7 @@ def get_sample_article():
 
 @app.post("/api/story/generate-from-article")
 def generate_story_from_article(data: ArticleInput, request: Request):
-    news = article_to_news_input(data.article)
-    try:
-        storyboard = generate_full_comic_from_news(
-            news,
-            generation_settings=data.generation_settings,
-            source_article=data.article,
-        )
-    except GeminiImageGenerationError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-
-    drive_upload = None
-    drive_upload_error = None
-    try:
-        drive_upload = maybe_upload_storyboard_to_drive(request, storyboard)
-    except Exception as e:
-        drive_upload_error = str(e)
+    news, storyboard, drive_upload, drive_upload_error = generate_cleaned_storyboard(data, request)
 
     comic_image_url = storyboard.get("comic_page_url")
     return {
@@ -678,22 +731,7 @@ def generate_story_from_article(data: ArticleInput, request: Request):
 
 @app.post("/api/story/generate-comic")
 def generate_comic(data: ArticleInput, request: Request):
-    news = article_to_news_input(data.article)
-    try:
-        storyboard = generate_full_comic_from_news(
-            news,
-            generation_settings=data.generation_settings,
-            source_article=data.article,
-        )
-    except GeminiImageGenerationError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-
-    drive_upload = None
-    drive_upload_error = None
-    try:
-        drive_upload = maybe_upload_storyboard_to_drive(request, storyboard)
-    except Exception as e:
-        drive_upload_error = str(e)
+    news, storyboard, drive_upload, drive_upload_error = generate_cleaned_storyboard(data, request)
 
     return {
         "title": storyboard.get("title") or news.title,

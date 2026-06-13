@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 StylePreset = Literal[
@@ -17,6 +17,17 @@ StylePreset = Literal[
 ]
 
 
+def normalize_string_list(value):
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return value
+
+
 class NewsInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -27,7 +38,7 @@ class NewsInput(BaseModel):
 class ArticleInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    article: str = Field(..., min_length=3, description="Story, activity, or social post text")
+    article: str = Field(..., min_length=3, description="Article text or a public news URL")
     generation_settings: Optional["GenerationSettings"] = Field(
         default=None,
         description="Optional image generation settings",
@@ -51,6 +62,11 @@ class NewsComicPagePanel(BaseModel):
     speech: List[str] = Field(default_factory=list, description="Speech bubble text")
     callouts: List[str] = Field(default_factory=list, description="Short label or callout text")
 
+    @field_validator("characters", "speech", "callouts", mode="before")
+    @classmethod
+    def normalize_panel_lists(cls, value):
+        return normalize_string_list(value)
+
 
 class NewsComicPageScript(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -66,3 +82,8 @@ class NewsComicPageScript(BaseModel):
     panels: List[NewsComicPagePanel] = Field(..., min_length=4, max_length=6)
     comic_page_url: Optional[str] = Field(default=None, description="Generated comic page URL")
     comic_error: Optional[str] = Field(default=None, description="Comic generation error")
+
+    @field_validator("allowed_facts", "locked_text_blocks", mode="before")
+    @classmethod
+    def normalize_script_lists(cls, value):
+        return normalize_string_list(value)

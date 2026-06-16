@@ -16,6 +16,11 @@ StylePreset = Literal[
     "internet_meme",
 ]
 
+ImageModel = Literal[
+    "gemini_image",
+    "flux_kontext_local",
+]
+
 
 def normalize_string_list(value):
     if value is None:
@@ -49,6 +54,7 @@ class GenerationSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     style_preset: StylePreset = Field(default="default", description="Comic visual style preset")
+    image_model: ImageModel = Field(default="flux_kontext_local", description="Image generation model")
 
 
 class NewsComicPagePanel(BaseModel):

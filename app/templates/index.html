@@ -73,6 +73,13 @@
               </select>
               <p id="style-description" class="style-description" aria-live="polite"></p>
             </div>
+            <div class="settings-row">
+              <label for="image-model">圖像生成模型</label>
+              <select id="image-model" name="image_model">
+                <option value="flux_kontext_local" selected>FLUX.1 Kontext dev 本地版</option>
+                <option value="gemini_image">Gemini Image</option>
+              </select>
+            </div>
           </div>
 
           <label for="article-input">新聞或文章</label>
@@ -193,9 +200,9 @@
           <article class="analysis-step">
             <div class="analysis-step-label">Step 5</div>
             <h3>最終漫畫</h3>
-            <div class="analysis-final-flow" aria-label="Prompt 到 Gemini Image 到漫畫">
+            <div class="analysis-final-flow" aria-label="Prompt 到圖像模型到漫畫">
               <span>Prompt</span>
-              <span>Gemini Image</span>
+              <span id="analysis-image-model-label">圖像模型</span>
               <span>漫畫</span>
             </div>
             <div id="analysis-final-image-frame" class="analysis-final-image-frame">

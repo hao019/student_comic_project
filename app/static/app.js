@@ -5,6 +5,7 @@ const clearInputButton = document.querySelector("#clear-input-button");
 const toggleSettingsButton = document.querySelector("#toggle-settings-button");
 const generationSettingsPanel = document.querySelector("#generation-settings-panel");
 const stylePresetInput = document.querySelector("#style-preset");
+const imageModelInput = document.querySelector("#image-model");
 const styleDescription = document.querySelector("#style-description");
 const generateButton = document.querySelector("#generate-button");
 const statusMessage = document.querySelector("#status-message");
@@ -76,6 +77,7 @@ const analysisUnderstanding = document.querySelector("#analysis-understanding");
 const analysisPanels = document.querySelector("#analysis-panels");
 const analysisPrompt = document.querySelector("#analysis-prompt");
 const analysisFinalImage = document.querySelector("#analysis-final-image");
+const analysisImageModelLabel = document.querySelector("#analysis-image-model-label");
 const historyAllButton = document.querySelector("#history-all-button");
 const historyFavoritesButton = document.querySelector("#history-favorites-button");
 let progressTimer = null;
@@ -120,7 +122,8 @@ const progressLabels = [
 
 const progressStepThresholds = [0, 22, 55, 78];
 const estimatedGenerationMs = 52000;
-const settingsStorageKey = "comicGenerationSettings";
+const defaultImageModel = "flux_kontext_local";
+const settingsStorageKey = "comicGenerationSettings:v2";
 const favoritesStorageKey = "favoriteComics";
 const lastAnalysisComicStorageKey = "lastAnalysisComic";
 const historyCategories = [
@@ -145,6 +148,10 @@ const comicStylePresets = [
   "emotional",
   "taiwan_news",
   "internet_meme",
+];
+const imageModelOptions = [
+  "gemini_image",
+  "flux_kontext_local",
 ];
 const comicStyleDescriptions = {
   default: "乾淨的新聞漫畫版面，色彩柔和，適合一般文章與新聞說明。",
@@ -199,6 +206,7 @@ async function loadSampleArticle() {
 function getGenerationSettings() {
   return {
     style_preset: stylePresetInput?.value || "default",
+    image_model: imageModelInput?.value || defaultImageModel,
   };
 }
 
@@ -226,6 +234,12 @@ function loadGenerationSettings() {
       stylePresetInput.value = saved.style_preset;
     } else {
       stylePresetInput.value = "default";
+    }
+
+    if (imageModelInput) {
+      imageModelInput.value = imageModelOptions.includes(saved.image_model)
+        ? saved.image_model
+        : defaultImageModel;
     }
   } catch (error) {
     console.warn("Could not load generation settings", error);
@@ -576,6 +590,19 @@ function getFinalComicUrl(storyboard) {
     || "";
 }
 
+function getImageModelLabel(imageModel) {
+  if (imageModel === "flux_kontext_local") {
+    return "FLUX.1 Kontext dev 本地版";
+  }
+  return "Gemini Image";
+}
+
+function getStoryboardImageModel(storyboard) {
+  return storyboard?.image_model
+    || storyboard?.generation_settings?.image_model
+    || defaultImageModel;
+}
+
 function renderAiAnalysis() {
   if (!analysisEmpty || !analysisContent) {
     return;
@@ -591,6 +618,12 @@ function renderAiAnalysis() {
 
   if (!hasAnalysisTarget) {
     return;
+  }
+
+  if (analysisImageModelLabel) {
+    analysisImageModelLabel.textContent = getImageModelLabel(
+      hasStoryboard ? getStoryboardImageModel(storyboard) : comic.image_model || defaultImageModel
+    );
   }
 
   if (!hasStoryboard) {
@@ -1622,7 +1655,7 @@ toggleSettingsButton.addEventListener("click", () => {
     !generationSettingsPanel.classList.contains("hidden")
   );
 });
-[stylePresetInput].filter(Boolean).forEach((input) => {
+[stylePresetInput, imageModelInput].filter(Boolean).forEach((input) => {
   input.addEventListener("input", () => {
     syncStyleDescription();
     saveGenerationSettings();

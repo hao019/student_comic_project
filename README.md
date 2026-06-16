@@ -62,6 +62,19 @@ GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_TEXT_MODEL=gemini-2.5-flash
 GEMINI_IMAGE_MODEL=gemini-3.1-flash-image
 
+# Optional: local FLUX.1 Kontext [dev] image generation.
+HF_TOKEN=your_huggingface_token_with_flux_kontext_access
+FLUX_KONTEXT_LOCAL_BACKEND=diffusers
+FLUX_KONTEXT_DIFFUSERS_MODEL_ID=black-forest-labs/FLUX.1-Kontext-dev
+FLUX_KONTEXT_LOCAL_URL=http://127.0.0.1:7860/generate
+FLUX_KONTEXT_LOCAL_MODEL=flux.1-kontext-dev
+FLUX_KONTEXT_LOCAL_WIDTH=1024
+FLUX_KONTEXT_LOCAL_HEIGHT=1024
+FLUX_KONTEXT_LOCAL_TIMEOUT=300
+FLUX_KONTEXT_LOCAL_STEPS=28
+FLUX_KONTEXT_LOCAL_GUIDANCE=3.5
+FLUX_KONTEXT_LOCAL_MAX_SEQUENCE_LENGTH=512
+
 GOOGLE_CLIENT_ID=your_google_oauth_client_id_here
 GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret_here
 GOOGLE_REDIRECT_URI=http://127.0.0.1:8000/auth/google/callback
@@ -153,6 +166,38 @@ emotional
 taiwan_news
 internet_meme
 ```
+
+### Local FLUX.1 Kontext [dev]
+
+The UI can choose `FLUX.1 Kontext dev local` as the image model.
+
+Set `FLUX_KONTEXT_LOCAL_BACKEND=diffusers` to load
+`black-forest-labs/FLUX.1-Kontext-dev` directly in the FastAPI process. The
+model is gated on Hugging Face, so accept the model terms and set `HF_TOKEN`
+before generating.
+
+Set `FLUX_KONTEXT_LOCAL_BACKEND=http` if you prefer to start your own local
+runtime separately, for example ComfyUI, Forge, or a small inference server, and
+expose an HTTP endpoint configured by `FLUX_KONTEXT_LOCAL_URL`.
+
+Expected request body:
+
+```json
+{
+  "prompt": "final comic prompt",
+  "model": "flux.1-kontext-dev",
+  "width": 1024,
+  "height": 1024,
+  "num_images": 1
+}
+```
+
+Accepted responses:
+
+- `image/png` or `image/jpeg` bytes
+- JSON with `image_base64`, `image`, `sample_base64`
+- JSON with `image_url`, `url`, `sample`, `output`
+- JSON with an `images` array containing one of the above
 
 ## 注意事項
 

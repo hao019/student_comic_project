@@ -3,9 +3,9 @@ import re
 from pathlib import Path
 
 from app.schemas import NewsComicPageScript
-from app.services.gemini_image_service import generate_comic_page_image
 from app.services.google_llm_service import generate_news_comic_page_script
 from app.services.google_news_service import fetch_random_google_focus_article
+from app.services.image_generation_service import get_image_model, generate_comic_page_image
 from app.services.prompt_builder import build_page_prompt
 
 
@@ -79,10 +79,11 @@ def generate_full_comic_from_news(news, generation_settings=None, source_article
     script = generate_news_comic_page_script(article_text)
     prompt = build_page_prompt(script, generation_settings)
     comic_filename = _unique_comic_filename(script.title)
-    comic_url = generate_comic_page_image(prompt, comic_filename)
+    comic_url = generate_comic_page_image(prompt, comic_filename, generation_settings)
 
     storyboard = _page_script_to_storyboard(script, article_text)
     storyboard["generation_settings"] = generation_settings.model_dump() if generation_settings else {}
+    storyboard["image_model"] = get_image_model(generation_settings)
     storyboard["comic_page_url"] = comic_url
     storyboard["comic_scroll_url"] = comic_url
     storyboard["comic_page_urls"] = [comic_url]

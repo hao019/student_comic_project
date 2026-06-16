@@ -36,7 +36,7 @@ def _style_prompt(generation_settings: GenerationSettings | None) -> str:
     return COMIC_STYLE_PROMPTS.get(style_preset, COMIC_STYLE_PROMPTS["default"])
 
 
-def build_page_prompt(script: NewsComicPageScript, generation_settings: GenerationSettings | None = None) -> str:
+def _panel_lines(script: NewsComicPageScript) -> list[str]:
     panel_lines = []
     for panel in script.panels:
         panel_lines.append(
@@ -51,14 +51,31 @@ def build_page_prompt(script: NewsComicPageScript, generation_settings: Generati
                 ]
             )
         )
+    return panel_lines
 
-    layout = {
+
+def _layout_prompt(script: NewsComicPageScript) -> str:
+    return {
         4: "four-panel grid, two panels on top row and two panels on bottom row",
         5: "five-panel news layout, two panels on top row, two panels in the middle row, one wide panel at the bottom",
         6: "six-panel grid, two columns and three rows",
     }.get(script.panel_count, "balanced multi-panel news comic layout")
-    allowed_facts = "\n".join(f"- {fact}" for fact in script.allowed_facts) or "- none"
-    locked_text = "\n".join(f"- {text}" for text in script.locked_text_blocks) or "- none"
+
+
+def _fact_lines(script: NewsComicPageScript) -> str:
+    return "\n".join(f"- {fact}" for fact in script.allowed_facts) or "- none"
+
+
+def _locked_text_lines(script: NewsComicPageScript) -> str:
+    return "\n".join(f"- {text}" for text in script.locked_text_blocks) or "- none"
+
+
+def _build_gemini_image_prompt(script: NewsComicPageScript, generation_settings: GenerationSettings | None = None) -> str:
+    panel_lines = _panel_lines(script)
+
+    layout = _layout_prompt(script)
+    allowed_facts = _fact_lines(script)
+    locked_text = _locked_text_lines(script)
 
     style_prompt = _style_prompt(generation_settings)
 
@@ -111,3 +128,62 @@ Avoid garbled characters.
 Final result:
 Make it look like a finished news comic page similar to a social media news explainer.
 The composition should integrate panels, speech bubbles, arrows, title labels, and callouts naturally."""
+
+
+def _build_flux_kontext_prompt(script: NewsComicPageScript, generation_settings: GenerationSettings | None = None) -> str:
+    panel_lines = _panel_lines(script)
+    style_prompt = _style_prompt(generation_settings)
+
+    characters = []
+    for panel in script.panels:
+        characters.extend(panel.characters or [])
+    unique_characters = list(dict.fromkeys(characters))
+    character_lines = "\n".join(f"- {character}" for character in unique_characters) or "- No recurring named character."
+
+    return f"""Create a finished one-page Traditional Chinese news manga infographic.
+
+Use FLUX.1 Kontext [dev] style prompt following. The prompt describes a complete comic page, not separate images.
+
+Visual style:
+{style_prompt}
+
+Page composition:
+- Square 1:1 canvas.
+- Use exactly {script.panel_count} panels.
+- Layout: {_layout_prompt(script)}.
+- Clear black panel borders.
+- Keep characters visually consistent across panels.
+- Use expressive faces, clear camera angles, and readable news infographic composition.
+
+News understanding:
+- Title: {script.title}
+- News type: {script.news_type}
+- Story shape: {script.story_shape}
+- Overall tone: {script.tone}
+- Summary: {script.summary}
+
+Recurring characters and groups:
+{character_lines}
+
+Allowed factual content:
+{_fact_lines(script)}
+
+Panel plan:
+{chr(10).join(panel_lines)}
+
+Text blocks to place in the artwork:
+{_locked_text_lines(script)}
+
+Text and fidelity rules:
+- Use only the exact Traditional Chinese text blocks listed above.
+- Do not add unrelated Chinese, English, logos, watermarks, signatures, UI text, or random captions.
+- If Chinese text rendering is difficult, prioritize larger title bars, labels, and speech bubbles over dense small text.
+- Do not invent unsupported people, brands, numbers, dates, places, or outcomes.
+- Keep the page suitable for a student news explainer comic."""
+
+
+def build_page_prompt(script: NewsComicPageScript, generation_settings: GenerationSettings | None = None) -> str:
+    image_model = getattr(generation_settings, "image_model", "gemini_image") if generation_settings else "gemini_image"
+    if image_model == "flux_kontext_local":
+        return _build_flux_kontext_prompt(script, generation_settings)
+    return _build_gemini_image_prompt(script, generation_settings)

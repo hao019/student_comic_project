@@ -13,7 +13,6 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from app.schemas import ArticleInput, NewsInput
-from app.services.gemini_image_service import GeminiImageGenerationError
 from app.services.google_drive_service import (
     GoogleDriveConfigError,
     build_authorization_url,
@@ -26,6 +25,7 @@ from app.services.google_drive_service import (
     write_drive_metadata,
 )
 from app.services.article_fetcher import ArticleFetchError, fetch_news_article, looks_like_url
+from app.services.image_generation_service import ImageGenerationError
 from app.services.news_cleaner import CleanedArticle, clean_copied_news_article
 from app.services.story_service import generate_full_comic_from_news, generate_random_sample_article
 
@@ -285,7 +285,7 @@ def generate_cleaned_storyboard(data: ArticleInput, request: Request) -> tuple[N
             generation_settings=data.generation_settings,
             source_article=cleaned_article.text,
         )
-    except GeminiImageGenerationError as e:
+    except ImageGenerationError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
     storyboard["original_article"] = source_article.strip()

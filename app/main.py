@@ -475,6 +475,9 @@ def get_local_comics() -> list[dict]:
 
     comics = []
     for image_path in comic_dir.glob("*.png"):
+        if "_panel_" in image_path.stem:
+            continue
+
         stat = image_path.stat()
         data_path = comic_data_dir / f"{image_path.stem}.json"
         page_count = 1

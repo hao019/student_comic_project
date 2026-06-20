@@ -18,7 +18,7 @@ StylePreset = Literal[
 
 ImageModel = Literal[
     "gemini_image",
-    "flux_kontext_local",
+    "sd35_medium_local",
 ]
 
 
@@ -54,7 +54,7 @@ class GenerationSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     style_preset: StylePreset = Field(default="default", description="Comic visual style preset")
-    image_model: ImageModel = Field(default="flux_kontext_local", description="Image generation model")
+    image_model: ImageModel = Field(default="sd35_medium_local", description="Image generation model")
 
 
 class NewsComicPagePanel(BaseModel):
@@ -63,6 +63,7 @@ class NewsComicPagePanel(BaseModel):
     panel_id: int = Field(..., ge=1, le=6, description="Panel number")
     panel_title: str = Field(..., min_length=1, description="Short title shown in the panel")
     visual: str = Field(..., min_length=1, description="Visual scene description")
+    visual_prompt_en: str = Field(default="", description="English visual prompt for SD3.5 image generation")
     characters: List[str] = Field(default_factory=list, description="Visible people or groups")
     main_text: str = Field(..., min_length=1, description="Main readable panel text")
     speech: List[str] = Field(default_factory=list, description="Speech bubble text")
@@ -83,6 +84,7 @@ class NewsComicPageScript(BaseModel):
     tone: str = Field(..., min_length=1, description="Editorial tone")
     panel_count: int = Field(..., ge=4, le=6, description="Number of panels")
     summary: str = Field(..., min_length=1, description="One sentence news summary")
+    visual_prompt_en: str = Field(default="", description="English page-level visual prompt for SD3.5 image generation")
     allowed_facts: List[str] = Field(default_factory=list, description="Facts, names, and numbers allowed in the image")
     locked_text_blocks: List[str] = Field(default_factory=list, description="Exact short text blocks for the image")
     panels: List[NewsComicPagePanel] = Field(..., min_length=4, max_length=6)

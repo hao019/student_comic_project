@@ -122,7 +122,7 @@ const progressLabels = [
 
 const progressStepThresholds = [0, 22, 55, 78];
 const estimatedGenerationMs = 52000;
-const defaultImageModel = "flux_kontext_local";
+const defaultImageModel = "sd35_medium_local";
 const settingsStorageKey = "comicGenerationSettings:v2";
 const favoritesStorageKey = "favoriteComics";
 const lastAnalysisComicStorageKey = "lastAnalysisComic";
@@ -151,7 +151,7 @@ const comicStylePresets = [
 ];
 const imageModelOptions = [
   "gemini_image",
-  "flux_kontext_local",
+  "sd35_medium_local",
 ];
 const comicStyleDescriptions = {
   default: "乾淨的新聞漫畫版面，色彩柔和，適合一般文章與新聞說明。",
@@ -591,8 +591,8 @@ function getFinalComicUrl(storyboard) {
 }
 
 function getImageModelLabel(imageModel) {
-  if (imageModel === "flux_kontext_local") {
-    return "FLUX.1 Kontext dev 本地版";
+  if (imageModel === "sd35_medium_local") {
+    return "SD3.5 Medium 本地版";
   }
   return "Gemini Image";
 }

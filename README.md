@@ -62,18 +62,24 @@ GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_TEXT_MODEL=gemini-2.5-flash
 GEMINI_IMAGE_MODEL=gemini-3.1-flash-image
 
-# Optional: local FLUX.1 Kontext [dev] image generation.
-HF_TOKEN=your_huggingface_token_with_flux_kontext_access
-FLUX_KONTEXT_LOCAL_BACKEND=diffusers
-FLUX_KONTEXT_DIFFUSERS_MODEL_ID=black-forest-labs/FLUX.1-Kontext-dev
-FLUX_KONTEXT_LOCAL_URL=http://127.0.0.1:7860/generate
-FLUX_KONTEXT_LOCAL_MODEL=flux.1-kontext-dev
-FLUX_KONTEXT_LOCAL_WIDTH=1024
-FLUX_KONTEXT_LOCAL_HEIGHT=1024
-FLUX_KONTEXT_LOCAL_TIMEOUT=300
-FLUX_KONTEXT_LOCAL_STEPS=28
-FLUX_KONTEXT_LOCAL_GUIDANCE=3.5
-FLUX_KONTEXT_LOCAL_MAX_SEQUENCE_LENGTH=512
+# Optional: local SD3.5 Medium image generation.
+HF_TOKEN=your_huggingface_token_with_sd35_medium_access
+SD35_MEDIUM_LOCAL_BACKEND=diffusers
+SD35_MEDIUM_DIFFUSERS_MODEL_ID=stabilityai/stable-diffusion-3.5-medium
+SD35_MEDIUM_LOCAL_URL=http://127.0.0.1:7860/generate
+SD35_MEDIUM_LOCAL_MODEL=stable-diffusion-3.5-medium
+SD35_MEDIUM_LOCAL_WIDTH=1024
+SD35_MEDIUM_LOCAL_HEIGHT=1024
+SD35_MEDIUM_LOCAL_TIMEOUT=300
+SD35_MEDIUM_LOCAL_STEPS=36
+SD35_MEDIUM_LOCAL_GUIDANCE=4.0
+SD35_MEDIUM_LOCAL_MAX_SEQUENCE_LENGTH=512
+SD35_MEDIUM_PANEL_TARGET_PIXELS=1179648
+SD35_MEDIUM_PANEL_MAX_SIDE=1536
+SD35_MEDIUM_PANEL_MIN_SIDE=512
+SD35_MEDIUM_PANEL_MAX_ASPECT=3.0
+SD35_MEDIUM_CLIP_NEGATIVE_PROMPT=text, writing, logo, watermark, signature, speech bubble, text box, blurry, low detail, bad hands
+SD35_MEDIUM_NEGATIVE_PROMPT=two-page spread, multiple pages, contact sheet, storyboard sheet, thumbnail grid, manga manuscript notes, dense text, tiny text, illegible text, fake letters, gibberish writing, random Chinese characters, random Japanese characters, random English text, numbers, typography, captions, subtitles, labels, signs, posters with writing, documents full of writing, forms, handwritten notes, newspaper text, UI screenshot, game UI text, monitor text, watermark, signature, logo, cluttered layout, too many panels, tiny panels, cropped page, low quality, single portrait, close-up face, headshot, blindfold, eyes covered, white strip over face, blank banner over face, text box over face, speech bubble, word balloon, thought bubble, title bar, caption strip, caption box, yellow label box, large empty rectangle, monochrome photo, blurry, soft focus, low detail, muddy colors, distorted face, deformed hands, extra fingers, bad anatomy, unfinished sketch
 
 GOOGLE_CLIENT_ID=your_google_oauth_client_id_here
 GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret_here
@@ -167,25 +173,34 @@ taiwan_news
 internet_meme
 ```
 
-### Local FLUX.1 Kontext [dev]
+### Local SD3.5 Medium
 
-The UI can choose `FLUX.1 Kontext dev local` as the image model.
+The UI can choose `SD3.5 Medium local` as the image model.
 
-Set `FLUX_KONTEXT_LOCAL_BACKEND=diffusers` to load
-`black-forest-labs/FLUX.1-Kontext-dev` directly in the FastAPI process. The
+Set `SD35_MEDIUM_LOCAL_BACKEND=diffusers` to load
+`stabilityai/stable-diffusion-3.5-medium` directly in the FastAPI process. The
 model is gated on Hugging Face, so accept the model terms and set `HF_TOKEN`
 before generating.
 
-Set `FLUX_KONTEXT_LOCAL_BACKEND=http` if you prefer to start your own local
+For SD3.5 Medium, the app generates each comic panel separately, then composes
+the final page with Pillow. This keeps the panel count stable and adds
+Traditional Chinese text as an overlay instead of asking SD3.5 to render text.
+
+Set `SD35_MEDIUM_LOCAL_BACKEND=http` if you prefer to start your own local
 runtime separately, for example ComfyUI, Forge, or a small inference server, and
-expose an HTTP endpoint configured by `FLUX_KONTEXT_LOCAL_URL`.
+expose an HTTP endpoint configured by `SD35_MEDIUM_LOCAL_URL`.
 
 Expected request body:
 
 ```json
 {
-  "prompt": "final comic prompt",
-  "model": "flux.1-kontext-dev",
+  "prompt": "short CLIP prompt under 77 tokens",
+  "prompt_2": "short CLIP prompt under 77 tokens",
+  "prompt_3": "full T5 comic prompt",
+  "negative_prompt": "short CLIP negative prompt under 77 tokens",
+  "negative_prompt_2": "short CLIP negative prompt under 77 tokens",
+  "negative_prompt_3": "full T5 negative prompt",
+  "model": "stable-diffusion-3.5-medium",
   "width": 1024,
   "height": 1024,
   "num_images": 1
@@ -198,6 +213,18 @@ Accepted responses:
 - JSON with `image_base64`, `image`, `sample_base64`
 - JSON with `image_url`, `url`, `sample`, `output`
 - JSON with an `images` array containing one of the above
+
+### Windows port 8000 helper
+
+Use this helper instead of starting uvicorn manually when you want the app on
+`http://127.0.0.1:8000/`:
+
+```powershell
+.\start_8000.ps1
+```
+
+It stops any existing process listening on `127.0.0.1:8000` before starting
+FastAPI, which prevents `WinError 10048` port conflicts.
 
 ## 注意事項
 

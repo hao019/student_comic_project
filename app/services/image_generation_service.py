@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from app.services.flux_kontext_local_service import generate_comic_page_image as generate_flux_kontext_local
 from app.services.gemini_image_service import (
     GeminiImageGenerationError,
     generate_comic_page_image as generate_gemini_image,
 )
+from app.services.sd35_medium_local_service import generate_comic_page_image as generate_sd35_medium_local
 
 
 class ImageGenerationError(RuntimeError):
@@ -17,12 +17,17 @@ def get_image_model(generation_settings=None) -> str:
     return getattr(generation_settings, "image_model", "gemini_image") or "gemini_image"
 
 
-def generate_comic_page_image(prompt: str, filename: str, generation_settings=None) -> str:
+def generate_comic_page_image(
+    prompt: str,
+    filename: str,
+    generation_settings=None,
+    image_size: tuple[int, int] | None = None,
+) -> str:
     image_model = get_image_model(generation_settings)
 
     try:
-        if image_model == "flux_kontext_local":
-            return generate_flux_kontext_local(prompt, filename)
+        if image_model == "sd35_medium_local":
+            return generate_sd35_medium_local(prompt, filename, image_size=image_size)
         return generate_gemini_image(prompt, filename)
     except GeminiImageGenerationError as e:
         raise ImageGenerationError(str(e)) from e

@@ -1,0 +1,317 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+
+from app.schemas import NewsComicPageScript
+
+
+PAGE_SIZE = 1600
+PAGE_MARGIN = 28
+TITLE_HEIGHT = 118
+GUTTER = 22
+PANEL_BORDER = 5
+TEXT_PAD = 14
+TAG_FILL = (255, 225, 92, 238)
+HEADER_FILL = (255, 255, 255, 244)
+INK = (10, 14, 24, 255)
+
+
+def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    candidates = [
+        r"C:\Windows\Fonts\msjhbd.ttc" if bold else r"C:\Windows\Fonts\msjh.ttc",
+        r"C:\Windows\Fonts\NotoSansCJK-Regular.ttc",
+        r"C:\Windows\Fonts\mingliu.ttc",
+        r"C:\Windows\Fonts\arial.ttf",
+    ]
+    for path in candidates:
+        if path and Path(path).exists():
+            try:
+                return ImageFont.truetype(path, size=size)
+            except OSError:
+                continue
+    return ImageFont.load_default()
+
+
+def _text_width(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont) -> int:
+    bbox = draw.textbbox((0, 0), text, font=font)
+    return bbox[2] - bbox[0]
+
+
+def _wrap_text(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.ImageFont,
+    max_width: int,
+    max_lines: int,
+) -> list[str]:
+    text = " ".join(str(text or "").split())
+    if not text:
+        return []
+
+    lines: list[str] = []
+    current = ""
+    for char in text:
+        candidate = current + char
+        if current and _text_width(draw, candidate, font) > max_width:
+            lines.append(current)
+            current = char
+            if len(lines) >= max_lines:
+                break
+        else:
+            current = candidate
+
+    if current and len(lines) < max_lines:
+        lines.append(current)
+
+    if len(lines) == max_lines and len("".join(lines)) < len(text):
+        lines[-1] = lines[-1].rstrip("，,。.") + "..."
+
+    return lines
+
+
+def _fit_text_lines(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    max_width: int,
+    max_lines: int,
+    start_size: int,
+    min_size: int,
+    bold: bool = False,
+) -> tuple[ImageFont.ImageFont, list[str]]:
+    for size in range(start_size, min_size - 1, -2):
+        font = _font(size, bold=bold)
+        lines = _wrap_text(draw, text, font, max_width, max_lines)
+        if all(_text_width(draw, line, font) <= max_width for line in lines):
+            return font, lines
+    font = _font(min_size, bold=bold)
+    return font, _wrap_text(draw, text, font, max_width, max_lines)
+
+
+def _panel_boxes(panel_count: int) -> list[tuple[int, int, int, int]]:
+    left = PAGE_MARGIN
+    right = PAGE_SIZE - PAGE_MARGIN
+    top = PAGE_MARGIN + TITLE_HEIGHT
+    bottom = PAGE_SIZE - PAGE_MARGIN
+    area_w = right - left
+    area_h = bottom - top
+    col_w = (area_w - GUTTER) // 2
+
+    if panel_count == 4:
+        row_h = (area_h - GUTTER) // 2
+        return [
+            (left, top, left + col_w, top + row_h),
+            (left + col_w + GUTTER, top, right, top + row_h),
+            (left, top + row_h + GUTTER, left + col_w, bottom),
+            (left + col_w + GUTTER, top + row_h + GUTTER, right, bottom),
+        ]
+
+    if panel_count == 5:
+        row_h = (area_h - (GUTTER * 2)) // 3
+        return [
+            (left, top, left + col_w, top + row_h),
+            (left + col_w + GUTTER, top, right, top + row_h),
+            (left, top + row_h + GUTTER, left + col_w, top + row_h * 2 + GUTTER),
+            (left + col_w + GUTTER, top + row_h + GUTTER, right, top + row_h * 2 + GUTTER),
+            (left, top + row_h * 2 + GUTTER * 2, right, bottom),
+        ]
+
+    row_h = (area_h - (GUTTER * 2)) // 3
+    return [
+        (left, top, left + col_w, top + row_h),
+        (left + col_w + GUTTER, top, right, top + row_h),
+        (left, top + row_h + GUTTER, left + col_w, top + row_h * 2 + GUTTER),
+        (left + col_w + GUTTER, top + row_h + GUTTER, right, top + row_h * 2 + GUTTER),
+        (left, top + row_h * 2 + GUTTER * 2, left + col_w, bottom),
+        (left + col_w + GUTTER, top + row_h * 2 + GUTTER * 2, right, bottom),
+    ]
+
+
+def _cover_image(image: Image.Image, size: tuple[int, int]) -> Image.Image:
+    image = image.convert("RGB")
+    target_w, target_h = size
+    scale = max(target_w / image.width, target_h / image.height)
+    resized = image.resize((round(image.width * scale), round(image.height * scale)), Image.Resampling.LANCZOS)
+    left = (resized.width - target_w) // 2
+    top = (resized.height - target_h) // 2
+    return resized.crop((left, top, left + target_w, top + target_h))
+
+
+def _enhance_panel_image(image: Image.Image) -> Image.Image:
+    image = ImageEnhance.Contrast(image).enhance(1.06)
+    image = ImageEnhance.Color(image).enhance(1.04)
+    return image.filter(ImageFilter.UnsharpMask(radius=1.15, percent=85, threshold=3))
+
+
+def _draw_title(draw: ImageDraw.ImageDraw, script: NewsComicPageScript) -> None:
+    max_width = PAGE_SIZE - PAGE_MARGIN * 2
+    font, lines = _fit_text_lines(
+        draw,
+        script.title,
+        max_width=max_width,
+        max_lines=2,
+        start_size=54,
+        min_size=34,
+        bold=True,
+    )
+    y = PAGE_MARGIN - 2
+    for line in lines:
+        draw.text((PAGE_MARGIN, y), line, font=font, fill=INK)
+        y += int(font.size * 1.18) if hasattr(font, "size") else 34
+
+
+def _draw_text_lines(
+    draw: ImageDraw.ImageDraw,
+    xy: tuple[int, int],
+    lines: list[str],
+    font: ImageFont.ImageFont,
+    fill: tuple[int, int, int, int] = INK,
+) -> int:
+    x, y = xy
+    line_h = int(font.size * 1.15) if hasattr(font, "size") else 24
+    for line in lines:
+        draw.text((x, y), line, font=font, fill=fill)
+        y += line_h
+    return y
+
+
+def _narration_text(panel: dict) -> str:
+    parts = [str(panel.get("main_text") or "").strip()]
+    speech = [str(item).strip() for item in (panel.get("speech") or []) if str(item).strip()]
+    if speech:
+        parts.append(speech[0])
+    return " / ".join(part for part in parts if part)
+
+
+def _panel_header_height(panel_w: int, panel: dict) -> int:
+    has_quote = bool([item for item in (panel.get("speech") or []) if str(item).strip()])
+    if has_quote:
+        return 76 if panel_w < 1000 else 84
+    return 62 if panel_w < 1000 else 70
+
+
+def _draw_panel_header(draw: ImageDraw.ImageDraw, header_box: tuple[int, int, int, int], panel: dict) -> int:
+    x1, y1, x2, y2 = header_box
+    panel_w = x2 - x1
+    header_h = y2 - y1
+    draw.rectangle(header_box, fill=HEADER_FILL)
+
+    tag = str(panel.get("panel_title") or "").strip() or f"P{panel.get('panel_id') or ''}"
+    tag_font, tag_lines = _fit_text_lines(
+        draw,
+        tag,
+        max_width=max(120, panel_w // 3),
+        max_lines=1,
+        start_size=30,
+        min_size=22,
+        bold=True,
+    )
+    tag_text = tag_lines[0] if tag_lines else tag
+    tag_w = min(max(_text_width(draw, tag_text, tag_font) + 34, 128), panel_w // 2)
+    tag_box = (header_box[0], header_box[1], header_box[0] + tag_w, header_box[3])
+    draw.rectangle(tag_box, fill=TAG_FILL, outline=INK, width=3)
+    tag_y = tag_box[1] + max(5, (header_h - (tag_font.size if hasattr(tag_font, "size") else 24)) // 2 - 2)
+    draw.text((tag_box[0] + 16, tag_y), tag_text, font=tag_font, fill=INK)
+
+    main_text = _narration_text(panel)
+    main_x = tag_box[2] + 16
+    main_w = max(80, header_box[2] - main_x - 12)
+    main_font, main_lines = _fit_text_lines(
+        draw,
+        main_text,
+        max_width=main_w,
+        max_lines=2,
+        start_size=27,
+        min_size=18,
+        bold=True,
+    )
+    line_h = int(main_font.size * 1.15) if hasattr(main_font, "size") else 22
+    main_y = header_box[1] + max(5, (header_h - line_h * len(main_lines)) // 2)
+    _draw_text_lines(draw, (main_x, main_y), main_lines, main_font)
+    draw.line((header_box[0], header_box[3], header_box[2], header_box[3]), fill=INK, width=3)
+    return header_box[3]
+
+
+def _draw_callouts(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], callouts: list[str]) -> None:
+    if not callouts:
+        return
+
+    x1, y1, x2, y2 = box
+    y = y2 - PANEL_BORDER - 18
+    for callout in reversed([str(item).strip() for item in callouts[:2] if str(item).strip()]):
+        font, lines = _fit_text_lines(
+            draw,
+            callout,
+            max_width=(x2 - x1) // 2,
+            max_lines=1,
+            start_size=22,
+            min_size=18,
+            bold=True,
+        )
+        if not lines:
+            continue
+        text_w = _text_width(draw, lines[0], font)
+        tag_w = min(text_w + 34, x2 - x1 - 48)
+        tag_h = (font.size if hasattr(font, "size") else 22) + 20
+        y -= tag_h
+        tag_box = (x2 - PANEL_BORDER - 18 - tag_w, y, x2 - PANEL_BORDER - 18, y + tag_h)
+        draw.rectangle(tag_box, fill=TAG_FILL, outline=INK, width=3)
+        draw.text((tag_box[0] + 16, tag_box[1] + 8), lines[0], font=font, fill=INK)
+        y -= 10
+
+
+def _panel_regions(box: tuple[int, int, int, int], panel: dict) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]]:
+    x1, y1, x2, y2 = box
+    header_h = _panel_header_height(x2 - x1, panel)
+    header_box = (x1 + PANEL_BORDER, y1 + PANEL_BORDER, x2 - PANEL_BORDER, y1 + PANEL_BORDER + header_h)
+    image_box = (x1 + PANEL_BORDER, header_box[3] + 3, x2 - PANEL_BORDER, y2 - PANEL_BORDER)
+    return header_box, image_box
+
+
+def panel_image_dimensions(script: NewsComicPageScript) -> dict[int, tuple[int, int]]:
+    panels = [panel.model_dump() for panel in script.panels]
+    boxes = _panel_boxes(script.panel_count)
+    dimensions: dict[int, tuple[int, int]] = {}
+    for panel, box in zip(panels, boxes):
+        panel_id = int(panel.get("panel_id") or 0)
+        _, image_box = _panel_regions(box, panel)
+        dimensions[panel_id] = (image_box[2] - image_box[0], image_box[3] - image_box[1])
+    return dimensions
+
+
+def _draw_panel_overlays(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], panel: dict) -> None:
+    header_box, image_box = _panel_regions(box, panel)
+    _draw_panel_header(draw, header_box, panel)
+    _draw_callouts(draw, image_box, panel.get("callouts") or [])
+
+
+def compose_comic_page(
+    script: NewsComicPageScript,
+    panel_image_paths: dict[int, Path],
+    output_path: Path,
+) -> None:
+    page = Image.new("RGB", (PAGE_SIZE, PAGE_SIZE), (248, 247, 242))
+    draw = ImageDraw.Draw(page, "RGBA")
+    _draw_title(draw, script)
+
+    panels = [panel.model_dump() for panel in script.panels]
+    boxes = _panel_boxes(script.panel_count)
+    for panel, box in zip(panels, boxes):
+        panel_id = int(panel.get("panel_id") or 0)
+        image_path = panel_image_paths.get(panel_id)
+        if not image_path or not image_path.exists():
+            continue
+
+        x1, y1, x2, y2 = box
+        _, image_box = _panel_regions(box, panel)
+        image_w = image_box[2] - image_box[0]
+        image_h = image_box[3] - image_box[1]
+        panel_image = _cover_image(Image.open(image_path), (image_w, image_h))
+        panel_image = _enhance_panel_image(panel_image)
+        page.paste(panel_image, (image_box[0], image_box[1]))
+        draw.rectangle(box, outline=(13, 17, 23, 255), width=PANEL_BORDER)
+        _draw_panel_overlays(draw, box, panel)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    page.save(output_path)

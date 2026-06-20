@@ -36,6 +36,62 @@ def _style_prompt(generation_settings: GenerationSettings | None) -> str:
     return COMIC_STYLE_PROMPTS.get(style_preset, COMIC_STYLE_PROMPTS["default"])
 
 
+def _sd35_style_prompt(generation_settings: GenerationSettings | None) -> str:
+    style_prompt = _style_prompt(generation_settings)
+    removals = [
+        "balanced text boxes, ",
+        "rounded speech bubbles, ",
+        "clear title bars, callout boxes, ",
+        "labels,\n",
+        "readable Traditional Chinese text with strong hierarchy",
+        "readable Traditional Chinese text without adding unrelated meme captions",
+        "readable Traditional Chinese text",
+    ]
+    for text_rule in removals:
+        style_prompt = style_prompt.replace(text_rule, "")
+    style_prompt = style_prompt.replace(", .", ".").replace(",,", ",")
+    style_prompt = " ".join(style_prompt.split()).strip(" ,.")
+    return style_prompt or "clean editorial manga, soft color, polished ink outlines"
+
+
+def _limit_words(text: str, max_words: int) -> str:
+    words = str(text or "").split()
+    if len(words) <= max_words:
+        return str(text or "").strip()
+    return " ".join(words[:max_words]).rstrip(" ,.;:") + "."
+
+
+def _sd35_plain_scene_rule() -> str:
+    return (
+        "Make this a plain scene illustration with no graphic overlay layer. "
+        "Use blank, abstract shapes for screens, papers, signs, uniforms, and props."
+    )
+
+
+def _sd35_page_visual(script: NewsComicPageScript) -> str:
+    prompt = (getattr(script, "visual_prompt_en", "") or "").strip()
+    if prompt:
+        return _limit_words(prompt, 34)
+    return (
+        "A square editorial manga news explainer illustration with clearly separated panels, "
+        "multiple people, informative visual storytelling, modern public-interest news atmosphere, "
+        "soft color ink artwork, clean backgrounds, cinematic lighting."
+    )
+
+
+def _sd35_panel_visuals(script: NewsComicPageScript) -> str:
+    lines = []
+    for panel in script.panels:
+        prompt = (getattr(panel, "visual_prompt_en", "") or "").strip()
+        if not prompt:
+            prompt = (
+                "A clear editorial news scene with people reacting to an important public issue, "
+                "medium shot, environment visible, soft cinematic lighting, polished manga ink style."
+            )
+        lines.append(f"P{panel.panel_id}: {_limit_words(prompt, 24)}")
+    return "\n".join(lines)
+
+
 def _panel_lines(script: NewsComicPageScript) -> list[str]:
     panel_lines = []
     for panel in script.panels:
@@ -60,6 +116,14 @@ def _layout_prompt(script: NewsComicPageScript) -> str:
         5: "five-panel news layout, two panels on top row, two panels in the middle row, one wide panel at the bottom",
         6: "six-panel grid, two columns and three rows",
     }.get(script.panel_count, "balanced multi-panel news comic layout")
+
+
+def _sd35_layout_prompt(script: NewsComicPageScript) -> str:
+    return {
+        4: "four separate rectangles: P1 P2 top row, P3 P4 bottom row",
+        5: "five separate rectangles: P1 P2 top row, P3 P4 middle row, P5 wide bottom panel",
+        6: "six separate rectangles in a strict two-column by three-row grid",
+    }.get(script.panel_count, f"{script.panel_count} separate rectangular comic panels")
 
 
 def _fact_lines(script: NewsComicPageScript) -> str:
@@ -130,60 +194,71 @@ Make it look like a finished news comic page similar to a social media news expl
 The composition should integrate panels, speech bubbles, arrows, title labels, and callouts naturally."""
 
 
-def _build_flux_kontext_prompt(script: NewsComicPageScript, generation_settings: GenerationSettings | None = None) -> str:
-    panel_lines = _panel_lines(script)
-    style_prompt = _style_prompt(generation_settings)
+def _build_sd35_medium_prompt(script: NewsComicPageScript, generation_settings: GenerationSettings | None = None) -> str:
+    style_prompt = _sd35_style_prompt(generation_settings)
+    page_visual = _sd35_page_visual(script)
+    panel_visuals = _sd35_panel_visuals(script)
 
-    characters = []
-    for panel in script.panels:
-        characters.extend(panel.characters or [])
-    unique_characters = list(dict.fromkeys(characters))
-    character_lines = "\n".join(f"- {character}" for character in unique_characters) or "- No recurring named character."
+    clip_prompt = (
+        f"A square editorial manga news explainer illustration with {script.panel_count} separate panels, "
+        "visible gutters, clean black panel borders, several characters, soft color ink style."
+    )
 
-    return f"""Create a finished one-page Traditional Chinese news manga infographic.
+    return f"""CLIP prompt:
+{clip_prompt}
 
-Use FLUX.1 Kontext [dev] style prompt following. The prompt describes a complete comic page, not separate images.
-
-Visual style:
-{style_prompt}
-
-Page composition:
-- Square 1:1 canvas.
-- Use exactly {script.panel_count} panels.
-- Layout: {_layout_prompt(script)}.
-- Clear black panel borders.
-- Keep characters visually consistent across panels.
-- Use expressive faces, clear camera angles, and readable news infographic composition.
-
-News understanding:
-- Title: {script.title}
-- News type: {script.news_type}
-- Story shape: {script.story_shape}
-- Overall tone: {script.tone}
-- Summary: {script.summary}
-
-Recurring characters and groups:
-{character_lines}
-
-Allowed factual content:
-{_fact_lines(script)}
-
+T5 prompt:
+Create one square editorial manga news explainer page with exactly {script.panel_count} panels.
+Layout: {_sd35_layout_prompt(script)}.
+Direction: {page_visual}
+Use visible gutters, clean black borders, medium or wide shots, expressive characters, clear environments, cinematic lighting, and {style_prompt}.
+Avoid a single scene, three-strip layout, close-up portrait, dense writing, logos, watermarks, or readable letters.
 Panel plan:
-{chr(10).join(panel_lines)}
+{panel_visuals}
 
-Text blocks to place in the artwork:
-{_locked_text_lines(script)}
+Final image: coherent finished manga news page with balanced hierarchy and clear scene changes."""
 
-Text and fidelity rules:
-- Use only the exact Traditional Chinese text blocks listed above.
-- Do not add unrelated Chinese, English, logos, watermarks, signatures, UI text, or random captions.
-- If Chinese text rendering is difficult, prioritize larger title bars, labels, and speech bubbles over dense small text.
-- Do not invent unsupported people, brands, numbers, dates, places, or outcomes.
-- Keep the page suitable for a student news explainer comic."""
+
+def build_sd35_panel_prompt(
+    script: NewsComicPageScript,
+    panel_id: int,
+    generation_settings: GenerationSettings | None = None,
+) -> str:
+    style_prompt = _sd35_style_prompt(generation_settings)
+    panel = next((item for item in script.panels if item.panel_id == panel_id), None)
+    if panel is None:
+        raise ValueError(f"Panel {panel_id} not found in script.")
+
+    page_visual = _sd35_page_visual(script)
+    panel_visual = (getattr(panel, "visual_prompt_en", "") or "").strip()
+    if not panel_visual:
+        panel_visual = (
+            "A clear editorial manga news scene with people reacting to an important public issue, "
+            "medium shot, visible environment, cinematic lighting, polished ink style."
+        )
+
+    clip_prompt = (
+        "A high quality detailed anime editorial news illustration, clear focal subject, "
+        "expressive characters, fine ink linework, polished color shading."
+    )
+
+    return f"""CLIP prompt:
+{clip_prompt}
+
+T5 prompt:
+Create one standalone editorial manga news panel.
+Scene: {_limit_words(panel_visual, 58)}
+Page context: {_limit_words(page_visual, 24)}
+Use medium or wide camera framing, clear focal subject, clean readable composition, rich background detail, natural body language, cinematic lighting, and {style_prompt}.
+Add detailed clothing folds, well-drawn faces, natural hands, meaningful props, layered environment depth, crisp fine ink linework, subtle texture, and polished color shading.
+Keep the anatomy coherent, faces attractive and consistent, and the scene finished rather than sketchy.
+{_sd35_plain_scene_rule()}
+Fill the illustration naturally from edge to edge without leaving large empty blank areas.
+Final image: polished manga news panel with clear storytelling."""
 
 
 def build_page_prompt(script: NewsComicPageScript, generation_settings: GenerationSettings | None = None) -> str:
     image_model = getattr(generation_settings, "image_model", "gemini_image") if generation_settings else "gemini_image"
-    if image_model == "flux_kontext_local":
-        return _build_flux_kontext_prompt(script, generation_settings)
+    if image_model == "sd35_medium_local":
+        return _build_sd35_medium_prompt(script, generation_settings)
     return _build_gemini_image_prompt(script, generation_settings)

@@ -281,6 +281,25 @@ def download_file_bytes(token_data: dict[str, Any], file_id: str) -> dict[str, A
     }
 
 
+def trash_files(token_data: dict[str, Any], file_ids: list[str]) -> dict[str, Any]:
+    service, credentials = _drive_service(token_data)
+    unique_ids = list(dict.fromkeys(str(file_id or "").strip() for file_id in file_ids if str(file_id or "").strip()))
+    trashed_files = []
+
+    for file_id in unique_ids:
+        trashed = service.files().update(
+            fileId=file_id,
+            body={"trashed": True},
+            fields="id, name, trashed",
+        ).execute()
+        trashed_files.append(trashed)
+
+    return {
+        "files": trashed_files,
+        "token_data": credentials_to_session(credentials),
+    }
+
+
 def upload_comic_bundle(
     token_data: dict[str, Any],
     comic_path: Path,

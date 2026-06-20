@@ -6,57 +6,47 @@
     <title>基於大型語言模型與擴散模型之社群文案自動敘事插畫生成系統</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('assets', path='/ncut-seal.svg') }}">
     <link rel="apple-touch-icon" href="{{ url_for('assets', path='/ncut-seal.svg') }}">
-    <link rel="stylesheet" href="{{ url_for('assets', path='/style.css') }}?v=20260614-storyboard-object-fix">
+    <link rel="stylesheet" href="{{ url_for('assets', path='/style.css') }}?v=20260621-hero-strip-small">
   </head>
   <body>
     <main class="page-shell">
-      <section class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">FastAPI AI Comic Demo</p>
-          <h1>基於大型語言模型與擴散模型之社群文案自動敘事插畫生成系統</h1>
-          <p class="hero-subtitle">輸入新聞或文章，系統會自動生成分鏡、角色圖像與多格漫畫成品。</p>
-        </div>
-        <div class="hero-runner" aria-hidden="true">
-          <div class="runner-sky">
-            <span></span>
-            <span></span>
+      <header class="top-bar">
+        <section class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">FastAPI AI Comic Demo</p>
+            <h1>基於大型語言模型與擴散模型之社群文案自動敘事插畫生成系統</h1>
+            <p class="hero-subtitle">輸入新聞或文章，系統會自動生成分鏡、角色圖像與多格漫畫成品。</p>
           </div>
-          <div class="runner-dino">
-            <span class="dino-head"></span>
-            <span class="dino-body"></span>
-            <span class="dino-tail"></span>
-            <span class="dino-arm"></span>
-            <span class="dino-leg dino-leg-front"></span>
-            <span class="dino-leg dino-leg-back"></span>
+          <div class="hero-runner" aria-hidden="true">
+            <img
+              class="hero-strip-image"
+              src="{{ url_for('assets', path='/hero-comic-strip.png') }}"
+              alt=""
+            >
           </div>
-          <div class="runner-obstacle runner-cactus"></div>
-          <div class="runner-bird">
-            <span></span>
-            <span></span>
-          </div>
-          <div class="runner-ground"></div>
-        </div>
-      </section>
+        </section>
 
-      <nav class="main-nav" aria-label="主要導覽">
-        <button id="home-nav-button" class="nav-button is-active" type="button">首頁</button>
-        <button id="library-nav-button" class="nav-button" type="button">作品庫</button>
-        <button id="analysis-nav-button" class="nav-button" type="button">AI流程分析</button>
-      </nav>
+        <nav class="main-nav" aria-label="主要導覽">
+          <button id="home-nav-button" class="nav-button is-active" type="button">首頁</button>
+          <button id="library-nav-button" class="nav-button" type="button">作品庫</button>
+          <button id="analysis-nav-button" class="nav-button" type="button">AI流程分析</button>
+        </nav>
+      </header>
 
       <section id="generate-view" class="demo-panel">
         <form id="comic-form" class="input-panel">
           <div class="panel-heading">
-            <div>
+            <div class="input-heading-title">
               <p class="panel-kicker">Input</p>
               <h2>文章輸入區</h2>
             </div>
             <div class="input-tools">
-              <button id="toggle-settings-button" class="secondary-button compact-button" type="button">漫畫風格切換</button>
+              <button id="toggle-settings-button" class="secondary-button compact-button" type="button">風格切換</button>
               <button id="sample-article-button" class="secondary-button compact-button" type="button">範例文章</button>
               <button id="clear-input-button" class="secondary-button compact-button" type="button">清空</button>
             </div>
           </div>
+          <a id="sample-source-link" class="sample-source-link hidden" href="#" target="_blank" rel="noopener noreferrer"></a>
 
           <div id="generation-settings-panel" class="generation-settings hidden">
             <div class="settings-row">
@@ -296,6 +286,6 @@
       </div>
     </section>
 
-    <script src="{{ url_for('assets', path='/app.js') }}?v=20260614-storyboard-object-fix" defer></script>
+    <script src="{{ url_for('assets', path='/app.js') }}?v=20260621-hero-strip-small" defer></script>
   </body>
 </html>

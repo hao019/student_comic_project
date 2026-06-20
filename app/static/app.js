@@ -1,6 +1,7 @@
 const form = document.querySelector("#comic-form");
 const articleInput = document.querySelector("#article-input");
 const sampleArticleButton = document.querySelector("#sample-article-button");
+const sampleSourceLink = document.querySelector("#sample-source-link");
 const clearInputButton = document.querySelector("#clear-input-button");
 const toggleSettingsButton = document.querySelector("#toggle-settings-button");
 const generationSettingsPanel = document.querySelector("#generation-settings-panel");
@@ -170,6 +171,26 @@ const sampleArticle = `校園科技社今天舉辦「AI 創意漫畫工作坊」
 
 老師表示，這個工具能幫助學生把文字轉成視覺故事，也能訓練大家更清楚地表達事件、情緒與結局。`;
 
+function setSampleSourceLink(sourceUrl) {
+  if (!sampleSourceLink) {
+    return;
+  }
+
+  const url = String(sourceUrl || "").trim();
+  if (!url) {
+    sampleSourceLink.classList.add("hidden");
+    sampleSourceLink.removeAttribute("href");
+    sampleSourceLink.textContent = "";
+    sampleSourceLink.title = "";
+    return;
+  }
+
+  sampleSourceLink.href = url;
+  sampleSourceLink.textContent = url;
+  sampleSourceLink.title = url;
+  sampleSourceLink.classList.remove("hidden");
+}
+
 async function loadSampleArticle() {
   const originalText = sampleArticleButton.textContent;
   sampleArticleButton.disabled = true;
@@ -188,11 +209,16 @@ async function loadSampleArticle() {
 
     const title = data.title ? `${data.title}\n\n` : "";
     articleInput.value = `${title}${data.article || sampleArticle}`.trim();
-    statusMessage.textContent = "已抓取一則 Google 焦點新聞";
+    const sourceUrl = data.source_url || data.sourceUrl || data.url || data.link;
+    setSampleSourceLink(sourceUrl);
+    statusMessage.textContent = sourceUrl
+      ? "已抓取一則 Google 焦點新聞，來源網址已載入。"
+      : "已抓取一則 Google 焦點新聞，但本次來源未提供網址。";
     showToast("已抓取一則 Google 焦點新聞", "success");
   } catch (error) {
     console.error(error);
     articleInput.value = sampleArticle;
+    setSampleSourceLink("");
     errorMessage.textContent = "Google 焦點新聞抓取失敗，已改用本地範例。";
     showToast("Google 焦點新聞抓取失敗，已改用本地範例。", "error");
     statusMessage.textContent = "";
@@ -941,7 +967,7 @@ function showComicContextMenu(event, comic) {
   contextComic = comic;
   contextArticleButton.disabled = !comic?.has_article;
   contextRenameButton.disabled = comic?.storage === "drive";
-  contextDeleteButton.disabled = comic?.storage === "drive";
+  contextDeleteButton.disabled = comic?.storage === "drive" && !comic?.drive_file_id;
 
   const menuWidth = 180;
   const menuHeight = 176;
@@ -1373,7 +1399,9 @@ function openCurrentResultPreview() {
   }, 260);
 }
 
-async function deleteHistoryComic(filename) {
+async function deleteHistoryComic(comicOrFilename) {
+  const isComicObject = comicOrFilename && typeof comicOrFilename === "object";
+  const filename = isComicObject ? comicOrFilename.filename : comicOrFilename;
   if (!filename) {
     return;
   }
@@ -1384,13 +1412,31 @@ async function deleteHistoryComic(filename) {
   }
 
   try {
-    const response = await fetch(`/api/comics/${encodeURIComponent(filename)}`, {
+    const isDriveComic = isComicObject && comicOrFilename.storage === "drive";
+    let deleteUrl = `/api/comics/${encodeURIComponent(filename)}`;
+
+    if (isDriveComic) {
+      if (!comicOrFilename.drive_file_id) {
+        throw new Error("這個 Google Drive 漫畫缺少檔案 ID，無法刪除。");
+      }
+      const params = new URLSearchParams();
+      if (comicOrFilename.drive_storyboard_id) {
+        params.set("storyboard_file_id", comicOrFilename.drive_storyboard_id);
+      }
+      deleteUrl = `/api/drive/files/${encodeURIComponent(comicOrFilename.drive_file_id)}${params.toString() ? `?${params}` : ""}`;
+    }
+
+    const response = await fetch(deleteUrl, {
       method: "DELETE",
     });
     const data = await response.json();
 
     if (!response.ok) {
       throw new Error(getErrorMessage(data, "刪除失敗"));
+    }
+
+    if (data.drive_delete_error) {
+      historyStatus.textContent = `本機已刪除，但 Google Drive 刪除失敗：${data.drive_delete_error}`;
     }
 
     if (selectedComicFilename === filename) {
@@ -1403,7 +1449,7 @@ async function deleteHistoryComic(filename) {
       syncFavoriteButton();
     }
     await loadComicHistory();
-    window.alert(`已刪除 ${data.filename}`);
+    window.alert(`已刪除 ${data.filename || filename}`);
   } catch (error) {
     console.error(error);
     historyStatus.textContent = error.message || "刪除失敗";
@@ -1668,6 +1714,7 @@ toggleSettingsButton.addEventListener("click", () => {
 sampleArticleButton.addEventListener("click", loadSampleArticle);
 clearInputButton.addEventListener("click", () => {
   articleInput.value = "";
+  setSampleSourceLink("");
   articleInput.focus();
   errorMessage.textContent = "";
 });
@@ -1715,7 +1762,7 @@ contextRenameButton.addEventListener("click", () => {
 });
 contextDeleteButton.addEventListener("click", () => {
   if (contextComic) {
-    deleteHistoryComic(contextComic.filename);
+    deleteHistoryComic(contextComic);
   }
   hideComicContextMenu();
 });

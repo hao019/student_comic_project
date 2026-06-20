@@ -21,6 +21,7 @@ from app.services.google_drive_service import (
     get_user_profile,
     is_google_oauth_configured,
     list_comic_bundles,
+    trash_files,
     upload_comic_bundle,
     write_drive_metadata,
 )
@@ -193,6 +194,17 @@ def get_drive_paths(storyboard: dict) -> tuple[Path, Path | None]:
     comic_path = BASE_DIR / "static" / "outputs" / "comic" / filename
     storyboard_path = BASE_DIR / "static" / "outputs" / "comic_data" / f"{Path(filename).stem}.json"
     return comic_path, storyboard_path
+
+
+def get_drive_file_ids_from_storyboard(storyboard: dict) -> list[str]:
+    drive_upload = storyboard.get("drive_upload") or {}
+    file_ids = []
+    for key in ("comic", "storyboard"):
+        item = drive_upload.get(key) if isinstance(drive_upload, dict) else None
+        file_id = str((item or {}).get("id") or "").strip()
+        if file_id:
+            file_ids.append(file_id)
+    return file_ids
 
 
 def maybe_upload_storyboard_to_drive(request: Request, storyboard: dict) -> dict | None:
@@ -602,6 +614,28 @@ def get_drive_article(file_id: str, request: Request):
     }
 
 
+@app.delete("/api/drive/files/{file_id}")
+def delete_drive_file(file_id: str, request: Request):
+    token_data = get_google_token_or_401(request)
+    storyboard_file_id = str(request.query_params.get("storyboard_file_id") or "").strip()
+    file_ids = [file_id]
+    if storyboard_file_id and storyboard_file_id != file_id:
+        file_ids.append(storyboard_file_id)
+
+    try:
+        result = trash_files(token_data, file_ids)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Could not delete Google Drive file: {e}")
+
+    update_google_token(request, result.pop("token_data", None))
+    return {
+        "deleted": True,
+        "storage": "drive",
+        "file_ids": [file.get("id") for file in result.get("files", [])],
+        "files": result.get("files", []),
+    }
+
+
 def get_comic_path(filename: str) -> Path:
     if Path(filename).name != filename or not filename.lower().endswith(".png"):
         raise HTTPException(status_code=400, detail="Invalid comic filename.")
@@ -672,15 +706,34 @@ def get_comic_original_article(filename: str):
 
 
 @app.delete("/api/comics/{filename}")
-def delete_comic(filename: str):
+def delete_comic(filename: str, request: Request):
     comic_path = get_comic_path(filename)
     data_path = get_comic_data_path(filename, must_exist=False)
+    drive_deleted = []
+    drive_delete_error = None
+
+    if data_path.exists():
+        try:
+            storyboard = json.loads(data_path.read_text(encoding="utf-8"))
+            drive_file_ids = get_drive_file_ids_from_storyboard(storyboard)
+            token_data = get_session(request).get("google_token")
+            if token_data and drive_file_ids:
+                result = trash_files(token_data, drive_file_ids)
+                update_google_token(request, result.pop("token_data", None))
+                drive_deleted = [file.get("id") for file in result.get("files", [])]
+        except Exception as e:
+            drive_delete_error = str(e)
 
     comic_path.unlink()
     if data_path.exists():
         data_path.unlink()
 
-    return {"deleted": True, "filename": filename}
+    return {
+        "deleted": True,
+        "filename": filename,
+        "drive_deleted": drive_deleted,
+        "drive_delete_error": drive_delete_error,
+    }
 
 
 @app.patch("/api/comics/{filename}/rename")

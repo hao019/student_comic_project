@@ -1,9 +1,19 @@
 from app.schemas import GenerationSettings, NewsComicPageScript
 
 
+DEFAULT_STYLE_PRESET = "cinematic_anime"
+SD35_FIXED_STYLE_PROMPT = (
+    "cinematic Japanese anime film comic style, airy scene-first composition, "
+    "clean manga linework, cool rain atmosphere with warm lamp light, soft luminous color, "
+    "detailed backgrounds, atmospheric depth, reflective surfaces, appealing finished panels"
+)
+
 COMIC_STYLE_PROMPTS = {
-    "default": """clean editorial manga, soft color, ink outlines, newspaper comic page,
-clear black panel borders, balanced text boxes, readable Traditional Chinese text.""",
+    "cinematic_anime": """cinematic Japanese anime film comic style, clean manga linework,
+soft luminous color, detailed backgrounds, atmospheric depth, gentle backlight,
+glossy reflections when appropriate, finished full-color manga panels.""",
+    "default": """finished editorial manga comic style, expressive ink outlines,
+soft vivid color, dynamic character acting, clear news comic panels.""",
     "monochrome_draft": """black-and-white manga manuscript style, crisp ink line art, screentone shading,
 visible pen texture, strong black panel borders, no color except black, white, and gray,
 readable Traditional Chinese text.""",
@@ -29,29 +39,257 @@ readable Traditional Chinese text without adding unrelated meme captions.""",
 
 
 def _style_prompt(generation_settings: GenerationSettings | None) -> str:
-    style_preset = "default"
-    if generation_settings:
-        style_preset = generation_settings.style_preset
-
+    style_preset = _style_preset(generation_settings)
     return COMIC_STYLE_PROMPTS.get(style_preset, COMIC_STYLE_PROMPTS["default"])
 
 
+def _style_preset(generation_settings: GenerationSettings | None) -> str:
+    if generation_settings:
+        return generation_settings.style_preset
+    return DEFAULT_STYLE_PRESET
+
+
 def _sd35_style_prompt(generation_settings: GenerationSettings | None) -> str:
-    style_prompt = _style_prompt(generation_settings)
-    removals = [
-        "balanced text boxes, ",
-        "rounded speech bubbles, ",
-        "clear title bars, callout boxes, ",
-        "labels,\n",
-        "readable Traditional Chinese text with strong hierarchy",
-        "readable Traditional Chinese text without adding unrelated meme captions",
-        "readable Traditional Chinese text",
+    return SD35_FIXED_STYLE_PROMPT
+
+
+def _sd35_color_consistency_rule(generation_settings: GenerationSettings | None) -> str:
+    return "Full-color manga: cool rainy blues balanced by warm amber lamps; avoid all-blue grading."
+
+
+def _is_political_news(script: NewsComicPageScript) -> bool:
+    haystack = " ".join(
+        str(value or "")
+        for value in (
+            script.title,
+            script.news_type,
+            script.story_shape,
+            script.summary,
+            " ".join(script.allowed_facts),
+        )
+    ).lower()
+    political_keywords = [
+        "政治",
+        "政壇",
+        "政黨",
+        "政府",
+        "內閣",
+        "國會",
+        "議會",
+        "首相",
+        "總統",
+        "市長",
+        "選舉",
+        "改選",
+        "公投",
+        "脫歐",
+        "工黨",
+        "保守黨",
+        "parliament",
+        "government",
+        "cabinet",
+        "prime minister",
+        "president",
+        "election",
+        "referendum",
+        "campaign",
+        "party",
+        "brexit",
     ]
-    for text_rule in removals:
-        style_prompt = style_prompt.replace(text_rule, "")
-    style_prompt = style_prompt.replace(", .", ".").replace(",,", ",")
-    style_prompt = " ".join(style_prompt.split()).strip(" ,.")
-    return style_prompt or "clean editorial manga, soft color, polished ink outlines"
+    return any(keyword in haystack for keyword in political_keywords)
+
+
+def _is_medical_news(script: NewsComicPageScript) -> bool:
+    haystack = " ".join(
+        str(value or "")
+        for value in (
+            script.title,
+            script.news_type,
+            script.story_shape,
+            script.summary,
+            " ".join(script.allowed_facts),
+        )
+    ).lower()
+    medical_keywords = [
+        "健康",
+        "醫療",
+        "醫師",
+        "醫界",
+        "醫院",
+        "診所",
+        "健檢",
+        "檢查",
+        "抽血",
+        "病症",
+        "疾病",
+        "糖尿病",
+        "心臟",
+        "心衰",
+        "腎臟",
+        "血管",
+        "死亡風險",
+        "國衛院",
+        "ckm",
+        "clinic",
+        "hospital",
+        "doctor",
+        "nurse",
+        "patient",
+        "medical",
+        "health",
+        "diabetes",
+        "heart",
+        "kidney",
+        "vascular",
+        "blood test",
+    ]
+    return any(keyword in haystack for keyword in medical_keywords)
+
+
+def _is_entertainment_news(script: NewsComicPageScript) -> bool:
+    haystack = " ".join(
+        str(value or "")
+        for value in (
+            script.title,
+            script.news_type,
+            script.story_shape,
+            script.summary,
+            " ".join(script.allowed_facts),
+        )
+    ).lower()
+    entertainment_keywords = [
+        "娛樂",
+        "影集",
+        "導演",
+        "主演",
+        "演員",
+        "客串",
+        "續拍",
+        "第二季",
+        "校園劇",
+        "netflix",
+        "streaming",
+        "drama",
+        "series",
+        "actor",
+        "director",
+        "season",
+    ]
+    return any(keyword in haystack for keyword in entertainment_keywords)
+
+
+def _is_campus_news(script: NewsComicPageScript) -> bool:
+    haystack = " ".join(
+        str(value or "")
+        for value in (
+            script.title,
+            script.news_type,
+            script.story_shape,
+            script.summary,
+            " ".join(script.allowed_facts),
+        )
+    ).lower()
+    campus_keywords = [
+        "校園",
+        "學校",
+        "學生",
+        "老師",
+        "師生",
+        "管教",
+        "教室",
+        "走廊",
+        "classroom",
+        "school",
+        "student",
+        "teacher",
+        "campus",
+    ]
+    return any(keyword in haystack for keyword in campus_keywords)
+
+
+def _scene(subject: str, composition: str, lighting: str) -> dict[str, str]:
+    return {
+        "subject": subject,
+        "composition": composition,
+        "lighting": lighting,
+    }
+
+
+def _sd35_safe_scene_templates(script: NewsComicPageScript) -> list[dict[str, str]]:
+    if _is_entertainment_news(script) or _is_campus_news(script):
+        return [
+            _scene("studio lounge, blank screen, two adult silhouettes talking", "wide shot, eye level, reflective floor", "warm window light, cool shadows, no text or logos"),
+            _scene("empty school corridor, blank bulletin boards, no students", "wide hallway view, deep perspective", "long window light, calm after-class mood"),
+            _scene("film set corner, director chair, camera silhouettes, blank monitor", "medium-wide shot, layered equipment foreground", "amber studio lamps, cool teal shadows"),
+            _scene("one adult holding a blank document by a rainy window", "over-the-shoulder medium shot", "soft city reflections, quiet warm lamp light"),
+            _scene("audience silhouettes facing a large blank screen", "rear wide shot, theater depth", "gentle backlight, reflective floor, no title text"),
+        ]
+
+    if _is_medical_news(script):
+        return [
+            _scene("empty clinic room, blank health report, stethoscope on table", "wide shot, eye level, window visible", "after-rain reflections, warm desk lamp"),
+            _scene("blank lab reports on desk, coffee cup, rain-streaked window", "still-life medium shot, no people", "amber lamp, cool blue city reflections"),
+            _scene("quiet hospital waiting room, distant adult silhouettes, plants", "far wide shot, strong depth", "warm ceiling lamps, polished reflective floor"),
+            _scene("adult hands holding blank health report, stethoscope, blood tubes", "close view of hands, shallow depth", "warm wooden desk, soft rainy window light"),
+            _scene("medical instruments, blank monitors, dim laboratory", "wide equipment shot, no people in focus", "warm device lights, cool rainy reflections"),
+        ]
+
+    if _is_political_news(script):
+        return [
+            _scene("parliament corridor, adult silhouettes, blank documents", "wide corridor shot, tall windows", "polished reflections, no flags or text"),
+            _scene("empty podium, microphones, blank press backdrop", "centered medium-wide press room", "warm overhead lights, cool shadows"),
+            _scene("adult voters from behind near blank ballot box", "rear medium-wide shot", "soft daylight, calm civic hall"),
+            _scene("rainy government building exterior, distant silhouettes", "wide establishing shot", "street light reflections, cinematic rain"),
+            _scene("adult analysts, blank papers, abstract map shape", "side-view table composition", "warm desk lamp, restrained shadows"),
+        ]
+
+    return [
+        _scene("adult silhouettes near window, blank papers on desk", "medium-wide interior shot", "warm-cool contrast, reflective surfaces"),
+        _scene("quiet city interior, blank screen, layered room depth", "wide shot with foreground elements", "soft window light, calm reflections"),
+        _scene("adult silhouettes walking through corridor, blank posters", "long hallway perspective", "long shadows, polished floor reflections"),
+        _scene("hands holding blank document beside rainy window", "close view of hands", "warm lamp light, rain reflections"),
+        _scene("small public space, distant adult figures, blank board", "wide airy composition", "trees outside, hopeful soft light"),
+    ]
+
+
+def _sd35_safe_panel_scene(script: NewsComicPageScript, panel_id: int) -> dict[str, str]:
+    templates = _sd35_safe_scene_templates(script)
+    index = max(0, (panel_id - 1) % len(templates))
+    return templates[index]
+
+
+def _sd35_safe_page_context(script: NewsComicPageScript) -> str:
+    if _is_entertainment_news(script) or _is_campus_news(script):
+        return "Cinematic entertainment and campus issue atmosphere, studio lights, blank screens, quiet corridors, reflective windows."
+    if _is_medical_news(script):
+        return "Calm health news atmosphere, clinics, labs, blank reports, abstract charts, hopeful window light."
+    if _is_political_news(script):
+        return "Civic news atmosphere, institutions, press rooms, blank documents, adult silhouettes, reflective floors."
+    return "Cinematic public-interest news atmosphere, adult silhouettes, blank documents, windows, reflections, warm-cool light."
+
+
+def _sd35_context_guardrails(script: NewsComicPageScript) -> str:
+    guardrails = []
+
+    if _is_political_news(script):
+        guardrails.append(
+            "Political: adult politicians, journalists, voters; parliament, podiums, ballot boxes, maps; "
+            "avoid celebrity likeness, teenagers, school uniforms."
+        )
+
+    if _is_medical_news(script):
+        guardrails.append(
+            "Medical: adult doctors, nurses, patients in clinics or labs; blank reports, abstract charts; "
+            "avoid teenagers, idol lineups, gore, exposed organs."
+        )
+
+    if _is_entertainment_news(script):
+        guardrails.append(
+            "Entertainment: directors, actors, film crew, studio, audience; blank screens and posters; "
+            "avoid logos, readable titles, season text, celebrity likeness."
+        )
+
+    return " ".join(guardrails)
 
 
 def _limit_words(text: str, max_words: int) -> str:
@@ -64,31 +302,23 @@ def _limit_words(text: str, max_words: int) -> str:
 def _sd35_plain_scene_rule() -> str:
     return (
         "Make this a plain scene illustration with no graphic overlay layer. "
-        "Use blank, abstract shapes for screens, papers, signs, uniforms, and props."
+        "Use blank, abstract shapes for screens, papers, signs, uniforms, and props. "
+        "Do not render readable text, letters, numbers, captions, logos, labels, or speech bubbles."
     )
 
 
 def _sd35_page_visual(script: NewsComicPageScript) -> str:
-    prompt = (getattr(script, "visual_prompt_en", "") or "").strip()
-    if prompt:
-        return _limit_words(prompt, 34)
-    return (
-        "A square editorial manga news explainer illustration with clearly separated panels, "
-        "multiple people, informative visual storytelling, modern public-interest news atmosphere, "
-        "soft color ink artwork, clean backgrounds, cinematic lighting."
-    )
+    return _limit_words(_sd35_safe_page_context(script), 18)
 
 
 def _sd35_panel_visuals(script: NewsComicPageScript) -> str:
     lines = []
     for panel in script.panels:
-        prompt = (getattr(panel, "visual_prompt_en", "") or "").strip()
-        if not prompt:
-            prompt = (
-                "A clear editorial news scene with people reacting to an important public issue, "
-                "medium shot, environment visible, soft cinematic lighting, polished manga ink style."
-            )
-        lines.append(f"P{panel.panel_id}: {_limit_words(prompt, 24)}")
+        scene = _sd35_safe_panel_scene(script, panel.panel_id)
+        prompt = (
+            f"{scene['subject']}; {scene['composition']}; {scene['lighting']}"
+        )
+        lines.append(f"P{panel.panel_id}: {_limit_words(prompt, 22)}")
     return "\n".join(lines)
 
 
@@ -196,23 +426,28 @@ The composition should integrate panels, speech bubbles, arrows, title labels, a
 
 def _build_sd35_medium_prompt(script: NewsComicPageScript, generation_settings: GenerationSettings | None = None) -> str:
     style_prompt = _sd35_style_prompt(generation_settings)
+    color_rule = _sd35_color_consistency_rule(generation_settings)
     page_visual = _sd35_page_visual(script)
     panel_visuals = _sd35_panel_visuals(script)
+    context_guardrails = _sd35_context_guardrails(script)
 
     clip_prompt = (
-        f"A square editorial manga news explainer illustration with {script.panel_count} separate panels, "
-        "visible gutters, clean black panel borders, several characters, soft color ink style."
+        f"A square editorial manga comic news explainer with {script.panel_count} separate panels, "
+        "visible gutters, clean black panel borders, expressive characters, soft color ink style."
     )
 
     return f"""CLIP prompt:
 {clip_prompt}
 
 T5 prompt:
-Create one square editorial manga news explainer page with exactly {script.panel_count} panels.
+Create one square manga news page with exactly {script.panel_count} panels.
 Layout: {_sd35_layout_prompt(script)}.
 Direction: {page_visual}
-Use visible gutters, clean black borders, medium or wide shots, expressive characters, clear environments, cinematic lighting, and {style_prompt}.
-Avoid a single scene, three-strip layout, close-up portrait, dense writing, logos, watermarks, or readable letters.
+{context_guardrails}
+{color_rule}
+Style: {style_prompt}.
+Use visible gutters, black borders, medium or wide shots, expressive characters, clear environments.
+Avoid single scene, close-up portrait, dense writing, logos, watermarks, readable letters.
 Panel plan:
 {panel_visuals}
 
@@ -230,16 +465,13 @@ def build_sd35_panel_prompt(
         raise ValueError(f"Panel {panel_id} not found in script.")
 
     page_visual = _sd35_page_visual(script)
-    panel_visual = (getattr(panel, "visual_prompt_en", "") or "").strip()
-    if not panel_visual:
-        panel_visual = (
-            "A clear editorial manga news scene with people reacting to an important public issue, "
-            "medium shot, visible environment, cinematic lighting, polished ink style."
-        )
+    color_rule = _sd35_color_consistency_rule(generation_settings)
+    context_guardrails = _sd35_context_guardrails(script)
+    scene = _sd35_safe_panel_scene(script, panel.panel_id)
 
     clip_prompt = (
-        "A high quality detailed anime editorial news illustration, clear focal subject, "
-        "expressive characters, fine ink linework, polished color shading."
+        "A high quality editorial manga comic panel, clear focal subject, expressive characters, "
+        "fine ink linework, polished color shading, finished comic art."
     )
 
     return f"""CLIP prompt:
@@ -247,11 +479,14 @@ def build_sd35_panel_prompt(
 
 T5 prompt:
 Create one standalone editorial manga news panel.
-Scene: {_limit_words(panel_visual, 58)}
-Page context: {_limit_words(page_visual, 24)}
-Use medium or wide camera framing, clear focal subject, clean readable composition, rich background detail, natural body language, cinematic lighting, and {style_prompt}.
-Add detailed clothing folds, well-drawn faces, natural hands, meaningful props, layered environment depth, crisp fine ink linework, subtle texture, and polished color shading.
-Keep the anatomy coherent, faces attractive and consistent, and the scene finished rather than sketchy.
+Subject and action: {_limit_words(scene["subject"], 20)}
+Composition and framing: {_limit_words(scene["composition"], 14)}
+Lighting and color: {_limit_words(scene["lighting"], 14)}
+Context: {_limit_words(page_visual, 18)}
+{context_guardrails}
+{color_rule}
+Style: {style_prompt}; crisp ink, natural hands, finished comic art.
+Keep anatomy coherent, faces appealing, body language readable.
 {_sd35_plain_scene_rule()}
 Fill the illustration naturally from edge to edge without leaving large empty blank areas.
 Final image: polished manga news panel with clear storytelling."""

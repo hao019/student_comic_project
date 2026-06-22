@@ -8,13 +8,13 @@ from app.schemas import NewsComicPageScript
 
 
 PAGE_SIZE = 1600
-PAGE_MARGIN = 28
-TITLE_HEIGHT = 118
-GUTTER = 22
-PANEL_BORDER = 5
+PAGE_MARGIN = 24
+TITLE_HEIGHT = 92
+GUTTER = 18
+PANEL_BORDER = 4
 TEXT_PAD = 14
-TAG_FILL = (255, 225, 92, 238)
-HEADER_FILL = (255, 255, 255, 244)
+TAG_FILL = (255, 225, 92, 205)
+HEADER_FILL = (255, 255, 255, 232)
 INK = (10, 14, 24, 255)
 
 
@@ -151,11 +151,11 @@ def _draw_title(draw: ImageDraw.ImageDraw, script: NewsComicPageScript) -> None:
         script.title,
         max_width=max_width,
         max_lines=2,
-        start_size=54,
-        min_size=34,
+        start_size=44,
+        min_size=28,
         bold=True,
     )
-    y = PAGE_MARGIN - 2
+    y = PAGE_MARGIN - 4
     for line in lines:
         draw.text((PAGE_MARGIN, y), line, font=font, fill=INK)
         y += int(font.size * 1.18) if hasattr(font, "size") else 34
@@ -177,9 +177,10 @@ def _draw_text_lines(
 
 
 def _narration_text(panel: dict) -> str:
-    parts = [str(panel.get("main_text") or "").strip()]
+    main_text = str(panel.get("main_text") or "").strip()
+    parts = [main_text]
     speech = [str(item).strip() for item in (panel.get("speech") or []) if str(item).strip()]
-    if speech:
+    if speech and len(main_text + speech[0]) <= 18:
         parts.append(speech[0])
     return " / ".join(part for part in parts if part)
 
@@ -187,8 +188,8 @@ def _narration_text(panel: dict) -> str:
 def _panel_header_height(panel_w: int, panel: dict) -> int:
     has_quote = bool([item for item in (panel.get("speech") or []) if str(item).strip()])
     if has_quote:
-        return 76 if panel_w < 1000 else 84
-    return 62 if panel_w < 1000 else 70
+        return 54 if panel_w < 1000 else 58
+    return 46 if panel_w < 1000 else 50
 
 
 def _draw_panel_header(draw: ImageDraw.ImageDraw, header_box: tuple[int, int, int, int], panel: dict) -> int:
@@ -201,35 +202,35 @@ def _draw_panel_header(draw: ImageDraw.ImageDraw, header_box: tuple[int, int, in
     tag_font, tag_lines = _fit_text_lines(
         draw,
         tag,
-        max_width=max(120, panel_w // 3),
+        max_width=max(86, panel_w // 4),
         max_lines=1,
-        start_size=30,
-        min_size=22,
+        start_size=22,
+        min_size=16,
         bold=True,
     )
     tag_text = tag_lines[0] if tag_lines else tag
-    tag_w = min(max(_text_width(draw, tag_text, tag_font) + 34, 128), panel_w // 2)
+    tag_w = min(max(_text_width(draw, tag_text, tag_font) + 24, 86), panel_w // 3)
     tag_box = (header_box[0], header_box[1], header_box[0] + tag_w, header_box[3])
-    draw.rectangle(tag_box, fill=TAG_FILL, outline=INK, width=3)
-    tag_y = tag_box[1] + max(5, (header_h - (tag_font.size if hasattr(tag_font, "size") else 24)) // 2 - 2)
-    draw.text((tag_box[0] + 16, tag_y), tag_text, font=tag_font, fill=INK)
+    draw.rectangle(tag_box, fill=TAG_FILL, outline=INK, width=2)
+    tag_y = tag_box[1] + max(4, (header_h - (tag_font.size if hasattr(tag_font, "size") else 20)) // 2 - 1)
+    draw.text((tag_box[0] + 12, tag_y), tag_text, font=tag_font, fill=INK)
 
     main_text = _narration_text(panel)
-    main_x = tag_box[2] + 16
+    main_x = tag_box[2] + 12
     main_w = max(80, header_box[2] - main_x - 12)
     main_font, main_lines = _fit_text_lines(
         draw,
         main_text,
         max_width=main_w,
         max_lines=2,
-        start_size=27,
-        min_size=18,
+        start_size=22,
+        min_size=15,
         bold=True,
     )
     line_h = int(main_font.size * 1.15) if hasattr(main_font, "size") else 22
     main_y = header_box[1] + max(5, (header_h - line_h * len(main_lines)) // 2)
     _draw_text_lines(draw, (main_x, main_y), main_lines, main_font)
-    draw.line((header_box[0], header_box[3], header_box[2], header_box[3]), fill=INK, width=3)
+    draw.line((header_box[0], header_box[3], header_box[2], header_box[3]), fill=INK, width=2)
     return header_box[3]
 
 
@@ -238,27 +239,27 @@ def _draw_callouts(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], ca
         return
 
     x1, y1, x2, y2 = box
-    y = y2 - PANEL_BORDER - 18
-    for callout in reversed([str(item).strip() for item in callouts[:2] if str(item).strip()]):
+    y = y2 - PANEL_BORDER - 14
+    for callout in reversed([str(item).strip() for item in callouts[:1] if str(item).strip()]):
         font, lines = _fit_text_lines(
             draw,
             callout,
-            max_width=(x2 - x1) // 2,
+            max_width=(x2 - x1) // 3,
             max_lines=1,
-            start_size=22,
-            min_size=18,
+            start_size=18,
+            min_size=14,
             bold=True,
         )
         if not lines:
             continue
         text_w = _text_width(draw, lines[0], font)
-        tag_w = min(text_w + 34, x2 - x1 - 48)
-        tag_h = (font.size if hasattr(font, "size") else 22) + 20
+        tag_w = min(text_w + 24, x2 - x1 - 48)
+        tag_h = (font.size if hasattr(font, "size") else 18) + 14
         y -= tag_h
         tag_box = (x2 - PANEL_BORDER - 18 - tag_w, y, x2 - PANEL_BORDER - 18, y + tag_h)
-        draw.rectangle(tag_box, fill=TAG_FILL, outline=INK, width=3)
-        draw.text((tag_box[0] + 16, tag_box[1] + 8), lines[0], font=font, fill=INK)
-        y -= 10
+        draw.rectangle(tag_box, fill=TAG_FILL, outline=INK, width=2)
+        draw.text((tag_box[0] + 12, tag_box[1] + 6), lines[0], font=font, fill=INK)
+        y -= 8
 
 
 def _panel_regions(box: tuple[int, int, int, int], panel: dict) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]]:

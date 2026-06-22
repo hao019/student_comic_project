@@ -92,9 +92,45 @@ Important:
   financial, medical, or political issues.
 - Do not invent brands, people, numbers, or consequences not supported by the article.
 - Avoid asking for a generic four-panel story. This is a news explainer comic page.
+- Plan scenes like cinematic storyboards, not meeting-room summaries. Prefer
+  environment-led visuals with foreground, midground, background, light direction,
+  reflections, windows, streets, corridors, screens, desks, rain, dusk, or warm
+  indoor lamps when relevant.
+- Keep each panel visually simple and appealing: usually 1 to 3 main visible
+  people, clear silhouettes, expressive but not gloomy faces, and one obvious
+  action. Avoid crowded lineups, repeated talking-head interviews, or five
+  people staring at the viewer.
+- Use a visual emotional arc across the page: alert, investigation, tension,
+  reflection, hopeful next step. Do not make every panel equally dark or anxious.
+- For politics, elections, parties, parliaments, cabinets, or government news:
+  use neutral institutional news symbols such as parliament buildings, press
+  conferences, cabinet rooms, party campaign offices, ballot boxes, polling
+  boards, maps, microphones, documents, and adult officials.
+- For political public figures, do not ask the image model for a precise
+  recognizable front-facing portrait or celebrity-like likeness. Prefer generic
+  adult politicians, side views, back views, silhouettes, podium scenes, hands
+  signing papers, or environment-led compositions.
+- Political and business scenes should show adult politicians, journalists,
+  campaign staff, analysts, or voters in formal or everyday adult clothing.
+  Avoid teenagers, school uniforms, idol group styling, anime club meetings, or
+  student classroom energy unless the article is explicitly about students.
+- For health, medical, hospitals, clinics, screening, blood tests, chronic
+  disease, diabetes, heart, kidney, or vascular news: use adult doctors, nurses,
+  lab technicians, public health experts, adult patients, clinic rooms,
+  examination rooms, blood draw stations, laboratory benches, blank health
+  reports, abstract medical charts, and simplified non-graphic anatomy diagrams.
+- Medical scenes should feel professional, calm, and educational. Avoid teenage
+  idol-group compositions, school uniforms, romantic anime staging, graphic gore,
+  exposed organs, horror imagery, or crowded all-female character lineups unless
+  the article explicitly supports that scene.
+- For entertainment, film, streaming, actors, directors, drama series, or season
+  renewal news: use directors, actors, camera crews, studio rooms, press events,
+  audience reactions, blank screens, blank posters, and abstract streaming UI
+  shapes. Do not ask for readable show titles, platform logos, episode numbers,
+  "Season 2" text, or celebrity-like exact faces inside the illustration.
 
 Panel planning rules:
-- panel_title: 2 to 6 Chinese characters, like 事件爆發, 爭議焦點, 各方回應, 後續待定.
+- panel_title: 2 to 4 Chinese characters, like 焦點, 轉折, 回聲, 展望.
 - visual: concrete visual description for the illustration.
 - visual_prompt_en: one detailed English sentence for Stable Diffusion 3.5.
   Use this structure: subject, action/state, environment/background,
@@ -105,14 +141,27 @@ Panel planning rules:
   Include concrete visual details such as clothing, gestures, facial expressions,
   room or street depth, background props, material textures, and lighting mood.
   Prefer medium shots and wide shots over close-up portraits.
+  For political news, include adult role words such as politician, journalist,
+  campaign staff, voter, analyst, parliament, press conference, ballot box,
+  polling board, or government office when relevant.
+  For medical news, include adult role words and places such as doctor, nurse,
+  patient, lab technician, clinic, hospital, blood test, health report,
+  abstract medical chart, or simplified anatomy diagram when relevant.
+  For entertainment news, use director, actor, film crew, studio, press event,
+  audience, blank screen, blank poster, or abstract streaming interface when
+  relevant. Never include readable show titles, logos, or season text.
 - characters: visible people or groups in the panel.
-- main_text: the most important readable text in that panel, 10 to 22 Chinese characters.
-- speech: 0 to 1 short quote or narration line, 6 to 14 Chinese characters.
+- main_text: the most important readable text in that panel, 8 to 16 Chinese characters.
+- speech: 0 to 1 short quote or narration line, 5 to 10 Chinese characters.
   This will be appended to the top narration bar, not drawn as a speech bubble.
-- callouts: 0 to 2 short labels or annotation boxes, 4 to 12 Chinese characters each.
+- callouts: 0 to 1 short label or annotation box, 4 to 10 Chinese characters.
 - Every panel_title, main_text, speech line, and callout must also appear in
   locked_text_blocks exactly.
 - Keep the whole page text short. Prefer fewer readable words over many tiny labels.
+  If a panel already has a clear panel_title and main_text, omit callouts.
+  Prefer empty callouts for entertainment, campus, health, and human-interest scenes.
+  Do not use platform names, brand names, actor names, or show titles as callouts
+  unless the article absolutely requires that exact visible label.
 
 Return this exact JSON shape:
 {{

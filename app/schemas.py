@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 StylePreset = Literal[
+    "cinematic_anime",
     "default",
     "monochrome_draft",
     "shonen",
@@ -53,7 +54,7 @@ class ArticleInput(BaseModel):
 class GenerationSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    style_preset: StylePreset = Field(default="default", description="Comic visual style preset")
+    style_preset: StylePreset = Field(default="cinematic_anime", description="Comic visual style preset")
     image_model: ImageModel = Field(default="sd35_medium_local", description="Image generation model")
 
 

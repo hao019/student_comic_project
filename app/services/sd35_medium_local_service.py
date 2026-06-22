@@ -27,7 +27,7 @@ HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_HUB_TOKEN")
 SD35_MEDIUM_LOCAL_TIMEOUT = int(os.getenv("SD35_MEDIUM_LOCAL_TIMEOUT", "300"))
 SD35_MEDIUM_LOCAL_WIDTH = int(os.getenv("SD35_MEDIUM_LOCAL_WIDTH", "1024"))
 SD35_MEDIUM_LOCAL_HEIGHT = int(os.getenv("SD35_MEDIUM_LOCAL_HEIGHT", "1024"))
-SD35_MEDIUM_LOCAL_STEPS = int(os.getenv("SD35_MEDIUM_LOCAL_STEPS", "36"))
+SD35_MEDIUM_LOCAL_STEPS = int(os.getenv("SD35_MEDIUM_LOCAL_STEPS", "28"))
 SD35_MEDIUM_LOCAL_GUIDANCE = float(os.getenv("SD35_MEDIUM_LOCAL_GUIDANCE", "4.0"))
 SD35_MEDIUM_LOCAL_SEED = os.getenv("SD35_MEDIUM_LOCAL_SEED", "").strip()
 SD35_MEDIUM_LOCAL_MAX_SEQUENCE_LENGTH = int(os.getenv("SD35_MEDIUM_LOCAL_MAX_SEQUENCE_LENGTH", "512"))
@@ -42,16 +42,9 @@ SD35_MEDIUM_CLIP_NEGATIVE_PROMPT = os.getenv(
 SD35_MEDIUM_NEGATIVE_PROMPT = os.getenv(
     "SD35_MEDIUM_NEGATIVE_PROMPT",
     (
-        "two-page spread, multiple pages, contact sheet, storyboard sheet, thumbnail grid, "
-        "manga manuscript notes, dense text, tiny text, illegible text, fake letters, gibberish writing, "
-        "random Chinese characters, random Japanese characters, random English text, "
-        "numbers, typography, captions, subtitles, labels, signs, posters with writing, "
-        "documents full of writing, forms, handwritten notes, newspaper text, UI screenshot, "
-        "game UI text, monitor text, watermark, signature, logo, cluttered layout, too many panels, "
-        "tiny panels, cropped page, low quality, single portrait, close-up face, headshot, "
-        "blindfold, eyes covered, white strip over face, blank banner over face, text box over face, "
-        "speech bubble, word balloon, thought bubble, title bar, caption strip, caption box, "
-        "yellow label box, large empty rectangle, monochrome photo, blurry, soft focus, low detail, "
+        "readable text, fake letters, gibberish writing, random Chinese characters, random Japanese characters, "
+        "random English text, logo, watermark, signature, speech bubble, word balloon, caption box, "
+        "title bar, UI screenshot, cluttered layout, cropped subject, close-up headshot, blurry, low detail, "
         "muddy colors, distorted face, deformed hands, extra fingers, bad anatomy, unfinished sketch"
     ),
 )
@@ -84,10 +77,19 @@ def _split_sd35_prompts(prompt: str) -> tuple[str, str]:
     if len(clip_words) > 65:
         clip_prompt = " ".join(clip_words[:65])
 
-    return clip_prompt, t5_prompt or clip_prompt
+    t5_prompt = _limit_t5_prompt(t5_prompt or clip_prompt)
+    return clip_prompt, t5_prompt
 
 
-def _round_to_multiple(value: float, multiple: int = 16) -> int:
+def _limit_t5_prompt(prompt: str) -> str:
+    words = str(prompt or "").split()
+    max_words = max(120, min(320, int(SD35_MEDIUM_LOCAL_MAX_SEQUENCE_LENGTH * 0.58)))
+    if len(words) <= max_words:
+        return str(prompt or "").strip()
+    return " ".join(words[:max_words]).rstrip(" ,.;:")
+
+
+def _round_to_multiple(value: float, multiple: int = 64) -> int:
     return max(multiple, int(round(value / multiple)) * multiple)
 
 

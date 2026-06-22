@@ -6,7 +6,7 @@
     <title>基於大型語言模型與擴散模型之社群文案自動敘事插畫生成系統</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('assets', path='/ncut-seal.svg') }}">
     <link rel="apple-touch-icon" href="{{ url_for('assets', path='/ncut-seal.svg') }}">
-    <link rel="stylesheet" href="{{ url_for('assets', path='/style.css') }}?v=20260621-hero-strip-small">
+    <link rel="stylesheet" href="{{ url_for('assets', path='/style.css') }}?v=20260623-true-hero-ratio">
   </head>
   <body>
     <main class="page-shell">
@@ -16,6 +16,11 @@
             <p class="eyebrow">FastAPI AI Comic Demo</p>
             <h1>基於大型語言模型與擴散模型之社群文案自動敘事插畫生成系統</h1>
             <p class="hero-subtitle">輸入新聞或文章，系統會自動生成分鏡、角色圖像與多格漫畫成品。</p>
+            <nav class="main-nav" aria-label="主要導覽">
+              <button id="home-nav-button" class="nav-button is-active" type="button">首頁</button>
+              <button id="library-nav-button" class="nav-button" type="button">作品庫</button>
+              <button id="analysis-nav-button" class="nav-button" type="button">AI流程分析</button>
+            </nav>
           </div>
           <div class="hero-runner" aria-hidden="true">
             <img
@@ -25,12 +30,6 @@
             >
           </div>
         </section>
-
-        <nav class="main-nav" aria-label="主要導覽">
-          <button id="home-nav-button" class="nav-button is-active" type="button">首頁</button>
-          <button id="library-nav-button" class="nav-button" type="button">作品庫</button>
-          <button id="analysis-nav-button" class="nav-button" type="button">AI流程分析</button>
-        </nav>
       </header>
 
       <section id="generate-view" class="demo-panel">
@@ -52,7 +51,8 @@
             <div class="settings-row">
               <label for="style-preset">漫畫風格</label>
               <select id="style-preset" name="style_preset">
-                <option value="default" selected>預設</option>
+                <option value="cinematic_anime" selected>電影感日系漫畫</option>
+                <option value="default">預設新聞漫畫</option>
                 <option value="monochrome_draft">黑白漫畫原稿風</option>
                 <option value="shonen">少年漫畫風</option>
                 <option value="gag_4koma">搞笑四格風</option>
@@ -286,6 +286,6 @@
       </div>
     </section>
 
-    <script src="{{ url_for('assets', path='/app.js') }}?v=20260621-hero-strip-small" defer></script>
+    <script src="{{ url_for('assets', path='/app.js') }}?v=20260623-fixed-local-style" defer></script>
   </body>
 </html>

@@ -124,7 +124,8 @@ const progressLabels = [
 const progressStepThresholds = [0, 22, 55, 78];
 const estimatedGenerationMs = 52000;
 const defaultImageModel = "sd35_medium_local";
-const settingsStorageKey = "comicGenerationSettings:v2";
+const defaultStylePreset = "cinematic_anime";
+const settingsStorageKey = "comicGenerationSettings:v3";
 const favoritesStorageKey = "favoriteComics";
 const lastAnalysisComicStorageKey = "lastAnalysisComic";
 const historyCategories = [
@@ -141,6 +142,7 @@ const historyCategories = [
   { id: "auto", label: "車訊", keywords: ["車訊", "汽車", "電動車", "機車", "車廠", "車款"] },
 ];
 const comicStylePresets = [
+  "cinematic_anime",
   "default",
   "monochrome_draft",
   "shonen",
@@ -155,6 +157,7 @@ const imageModelOptions = [
   "sd35_medium_local",
 ];
 const comicStyleDescriptions = {
+  cinematic_anime: "接近日系動畫電影感，乾淨漫畫線條、柔和光影、細緻背景與濕潤反光，適合你提供的參考風格。",
   default: "乾淨的新聞漫畫版面，色彩柔和，適合一般文章與新聞說明。",
   monochrome_draft: "黑白網點、強烈墨線，漫畫原稿感較重。",
   shonen: "速度線、誇張表情與動態構圖，畫面更有熱血節奏。",
@@ -230,9 +233,12 @@ async function loadSampleArticle() {
 }
 
 function getGenerationSettings() {
+  const imageModel = imageModelInput?.value || defaultImageModel;
   return {
-    style_preset: stylePresetInput?.value || "default",
-    image_model: imageModelInput?.value || defaultImageModel,
+    style_preset: imageModel === "sd35_medium_local"
+      ? defaultStylePreset
+      : stylePresetInput?.value || defaultStylePreset,
+    image_model: imageModel,
   };
 }
 
@@ -241,8 +247,26 @@ function syncStyleDescription() {
     return;
   }
 
-  const stylePreset = stylePresetInput?.value || "default";
-  styleDescription.textContent = comicStyleDescriptions[stylePreset] || comicStyleDescriptions.default;
+  if (imageModelInput?.value === "sd35_medium_local") {
+    styleDescription.textContent = "SD3.5 本地版目前固定使用電影感日系漫畫風格。";
+    return;
+  }
+
+  const stylePreset = stylePresetInput?.value || defaultStylePreset;
+  styleDescription.textContent = comicStyleDescriptions[stylePreset] || comicStyleDescriptions[defaultStylePreset];
+}
+
+function syncStyleControls() {
+  if (!stylePresetInput) {
+    return;
+  }
+
+  const isLocalModel = imageModelInput?.value === "sd35_medium_local";
+  stylePresetInput.disabled = isLocalModel;
+  if (isLocalModel) {
+    stylePresetInput.value = defaultStylePreset;
+  }
+  syncStyleDescription();
 }
 
 function saveGenerationSettings() {
@@ -259,7 +283,7 @@ function loadGenerationSettings() {
     if (comicStylePresets.includes(saved.style_preset)) {
       stylePresetInput.value = saved.style_preset;
     } else {
-      stylePresetInput.value = "default";
+      stylePresetInput.value = defaultStylePreset;
     }
 
     if (imageModelInput) {
@@ -271,7 +295,7 @@ function loadGenerationSettings() {
     console.warn("Could not load generation settings", error);
   }
 
-  syncStyleDescription();
+  syncStyleControls();
 }
 
 function attachPressFeedback() {
@@ -1703,11 +1727,11 @@ toggleSettingsButton.addEventListener("click", () => {
 });
 [stylePresetInput, imageModelInput].filter(Boolean).forEach((input) => {
   input.addEventListener("input", () => {
-    syncStyleDescription();
+    syncStyleControls();
     saveGenerationSettings();
   });
   input.addEventListener("change", () => {
-    syncStyleDescription();
+    syncStyleControls();
     saveGenerationSettings();
   });
 });

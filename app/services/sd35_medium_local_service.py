@@ -56,7 +56,16 @@ class SD35MediumLocalError(RuntimeError):
     pass
 
 
-def _split_sd35_prompts(prompt: str) -> tuple[str, str]:
+def _sd35_settings(generation_settings=None):
+    return getattr(generation_settings, "sd35", None) if generation_settings is not None else None
+
+
+def _setting_value(settings, name: str, default):
+    value = getattr(settings, name, None) if settings is not None else None
+    return default if value is None else value
+
+
+def _split_sd35_prompts(prompt: str, generation_settings=None) -> tuple[str, str]:
     prompt = (prompt or "").strip()
     if not prompt:
         return "", ""
@@ -77,13 +86,15 @@ def _split_sd35_prompts(prompt: str) -> tuple[str, str]:
     if len(clip_words) > 65:
         clip_prompt = " ".join(clip_words[:65])
 
-    t5_prompt = _limit_t5_prompt(t5_prompt or clip_prompt)
+    t5_prompt = _limit_t5_prompt(t5_prompt or clip_prompt, generation_settings)
     return clip_prompt, t5_prompt
 
 
-def _limit_t5_prompt(prompt: str) -> str:
+def _limit_t5_prompt(prompt: str, generation_settings=None) -> str:
+    settings = _sd35_settings(generation_settings)
+    max_sequence_length = int(_setting_value(settings, "max_sequence_length", SD35_MEDIUM_LOCAL_MAX_SEQUENCE_LENGTH))
     words = str(prompt or "").split()
-    max_words = max(120, min(320, int(SD35_MEDIUM_LOCAL_MAX_SEQUENCE_LENGTH * 0.58)))
+    max_words = max(120, min(320, int(max_sequence_length * 0.58)))
     if len(words) <= max_words:
         return str(prompt or "").strip()
     return " ".join(words[:max_words]).rstrip(" ,.;:")
@@ -93,20 +104,26 @@ def _round_to_multiple(value: float, multiple: int = 64) -> int:
     return max(multiple, int(round(value / multiple)) * multiple)
 
 
-def _resolve_generation_size(image_size: tuple[int, int] | None = None) -> tuple[int, int]:
+def _resolve_generation_size(image_size: tuple[int, int] | None = None, generation_settings=None) -> tuple[int, int]:
+    settings = _sd35_settings(generation_settings)
+    configured_width = int(_setting_value(settings, "width", SD35_MEDIUM_LOCAL_WIDTH))
+    configured_height = int(_setting_value(settings, "height", SD35_MEDIUM_LOCAL_HEIGHT))
+
     if not image_size:
-        return SD35_MEDIUM_LOCAL_WIDTH, SD35_MEDIUM_LOCAL_HEIGHT
+        return _round_to_multiple(configured_width), _round_to_multiple(configured_height)
 
     source_w, source_h = image_size
     if source_w <= 0 or source_h <= 0:
-        return SD35_MEDIUM_LOCAL_WIDTH, SD35_MEDIUM_LOCAL_HEIGHT
+        return _round_to_multiple(configured_width), _round_to_multiple(configured_height)
 
     aspect = source_w / source_h
     aspect = max(1 / SD35_MEDIUM_PANEL_MAX_ASPECT, min(SD35_MEDIUM_PANEL_MAX_ASPECT, aspect))
-    width = (SD35_MEDIUM_PANEL_TARGET_PIXELS * aspect) ** 0.5
+    target_pixels = configured_width * configured_height
+    width = (target_pixels * aspect) ** 0.5
     height = width / aspect
 
-    scale = min(SD35_MEDIUM_PANEL_MAX_SIDE / max(width, height), 1.0)
+    max_side = max(configured_width, configured_height, SD35_MEDIUM_PANEL_MIN_SIDE)
+    scale = min(max_side / max(width, height), 1.0)
     width *= scale
     height *= scale
 
@@ -115,8 +132,8 @@ def _resolve_generation_size(image_size: tuple[int, int] | None = None) -> tuple
         width *= scale
         height *= scale
 
-    width = min(width, SD35_MEDIUM_PANEL_MAX_SIDE)
-    height = min(height, SD35_MEDIUM_PANEL_MAX_SIDE)
+    width = min(width, max_side)
+    height = min(height, max_side)
     return _round_to_multiple(width), _round_to_multiple(height)
 
 
@@ -274,19 +291,26 @@ def _save_image(image_bytes: bytes, output_path: Path) -> None:
     image.save(output_path)
 
 
-def _generate_with_diffusers(prompt: str, output_path: Path, image_size: tuple[int, int] | None = None) -> None:
+def _generate_with_diffusers(
+    prompt: str,
+    output_path: Path,
+    generation_settings=None,
+    image_size: tuple[int, int] | None = None,
+) -> None:
     try:
         import torch
     except ImportError as e:
         raise SD35MediumLocalError("PyTorch is required for diffusers SD3.5 Medium generation.") from e
 
     pipe = _get_diffusers_pipe()
-    clip_prompt, t5_prompt = _split_sd35_prompts(prompt)
-    width, height = _resolve_generation_size(image_size)
+    settings = _sd35_settings(generation_settings)
+    clip_prompt, t5_prompt = _split_sd35_prompts(prompt, generation_settings)
+    width, height = _resolve_generation_size(image_size, generation_settings)
     generator = None
-    if SD35_MEDIUM_LOCAL_SEED:
+    configured_seed = _setting_value(settings, "seed", SD35_MEDIUM_LOCAL_SEED)
+    if configured_seed != "":
         try:
-            seed = int(SD35_MEDIUM_LOCAL_SEED)
+            seed = int(configured_seed)
         except ValueError as e:
             raise SD35MediumLocalError("SD35_MEDIUM_LOCAL_SEED must be an integer.") from e
         generator = torch.Generator("cuda" if torch.cuda.is_available() else "cpu").manual_seed(seed)
@@ -301,11 +325,11 @@ def _generate_with_diffusers(prompt: str, output_path: Path, image_size: tuple[i
             negative_prompt_3=SD35_MEDIUM_NEGATIVE_PROMPT,
             width=width,
             height=height,
-            num_inference_steps=SD35_MEDIUM_LOCAL_STEPS,
-            guidance_scale=SD35_MEDIUM_LOCAL_GUIDANCE,
+            num_inference_steps=int(_setting_value(settings, "steps", SD35_MEDIUM_LOCAL_STEPS)),
+            guidance_scale=float(_setting_value(settings, "guidance_scale", SD35_MEDIUM_LOCAL_GUIDANCE)),
             num_images_per_prompt=1,
             generator=generator,
-            max_sequence_length=SD35_MEDIUM_LOCAL_MAX_SEQUENCE_LENGTH,
+            max_sequence_length=int(_setting_value(settings, "max_sequence_length", SD35_MEDIUM_LOCAL_MAX_SEQUENCE_LENGTH)),
         )
     except Exception as e:
         raise SD35MediumLocalError(f"SD3.5 Medium diffusers generation failed: {e}") from e
@@ -322,14 +346,21 @@ def generate_image(
     prompt: str,
     output_path: Path,
     url_prefix: str,
+    generation_settings=None,
     image_size: tuple[int, int] | None = None,
 ) -> str:
     if SD35_MEDIUM_LOCAL_BACKEND == "diffusers":
-        _generate_with_diffusers(prompt, output_path, image_size=image_size)
+        _generate_with_diffusers(
+            prompt,
+            output_path,
+            generation_settings=generation_settings,
+            image_size=image_size,
+        )
         return f"{url_prefix}/{output_path.name}"
 
-    clip_prompt, t5_prompt = _split_sd35_prompts(prompt)
-    width, height = _resolve_generation_size(image_size)
+    settings = _sd35_settings(generation_settings)
+    clip_prompt, t5_prompt = _split_sd35_prompts(prompt, generation_settings)
+    width, height = _resolve_generation_size(image_size, generation_settings)
     payload = {
         "prompt": clip_prompt,
         "prompt_2": clip_prompt,
@@ -340,10 +371,14 @@ def generate_image(
         "model": SD35_MEDIUM_LOCAL_MODEL,
         "width": width,
         "height": height,
-        "num_inference_steps": SD35_MEDIUM_LOCAL_STEPS,
-        "guidance_scale": SD35_MEDIUM_LOCAL_GUIDANCE,
+        "num_inference_steps": int(_setting_value(settings, "steps", SD35_MEDIUM_LOCAL_STEPS)),
+        "guidance_scale": float(_setting_value(settings, "guidance_scale", SD35_MEDIUM_LOCAL_GUIDANCE)),
+        "max_sequence_length": int(_setting_value(settings, "max_sequence_length", SD35_MEDIUM_LOCAL_MAX_SEQUENCE_LENGTH)),
         "num_images": 1,
     }
+    configured_seed = _setting_value(settings, "seed", SD35_MEDIUM_LOCAL_SEED)
+    if configured_seed != "":
+        payload["seed"] = int(configured_seed)
     data, content_type = _request_json(SD35_MEDIUM_LOCAL_URL, payload)
 
     if content_type.startswith("image/"):
@@ -355,10 +390,16 @@ def generate_image(
     return f"{url_prefix}/{output_path.name}"
 
 
-def generate_comic_page_image(prompt: str, filename: str, image_size: tuple[int, int] | None = None) -> str:
+def generate_comic_page_image(
+    prompt: str,
+    filename: str,
+    generation_settings=None,
+    image_size: tuple[int, int] | None = None,
+) -> str:
     return generate_image(
         prompt,
         output_path=COMIC_DIR / filename,
         url_prefix="/static/outputs/comic",
+        generation_settings=generation_settings,
         image_size=image_size,
     )

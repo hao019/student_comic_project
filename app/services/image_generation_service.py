@@ -30,7 +30,12 @@ def generate_comic_page_image(
 
     try:
         if image_model == "sd35_medium_local":
-            return generate_sd35_medium_local(prompt, filename, image_size=image_size)
+            return generate_sd35_medium_local(
+                prompt,
+                filename,
+                generation_settings=generation_settings,
+                image_size=image_size,
+            )
         return generate_gemini_image(prompt, filename)
     except GeminiImageGenerationError as e:
         raise ImageGenerationError(str(e)) from e

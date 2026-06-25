@@ -7,6 +7,13 @@ const toggleSettingsButton = document.querySelector("#toggle-settings-button");
 const generationSettingsPanel = document.querySelector("#generation-settings-panel");
 const stylePresetInput = document.querySelector("#style-preset");
 const imageModelInput = document.querySelector("#image-model");
+const sd35SettingsPanel = document.querySelector("#sd35-settings");
+const sd35StepsInput = document.querySelector("#sd35-steps");
+const sd35WidthInput = document.querySelector("#sd35-width");
+const sd35HeightInput = document.querySelector("#sd35-height");
+const sd35GuidanceInput = document.querySelector("#sd35-guidance");
+const sd35SeedInput = document.querySelector("#sd35-seed");
+const sd35MaxSequenceInput = document.querySelector("#sd35-max-sequence");
 const styleDescription = document.querySelector("#style-description");
 const generateButton = document.querySelector("#generate-button");
 const statusMessage = document.querySelector("#status-message");
@@ -232,12 +239,40 @@ async function loadSampleArticle() {
   }
 }
 
+function readNumberInput(input, fallback = null) {
+  if (!input) {
+    return fallback;
+  }
+
+  const text = String(input.value || "").trim();
+  if (!text) {
+    return fallback;
+  }
+
+  const value = Number(text);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function getSd35Settings() {
+  return {
+    steps: readNumberInput(sd35StepsInput, 36),
+    width: readNumberInput(sd35WidthInput, 1024),
+    height: readNumberInput(sd35HeightInput, 1024),
+    guidance_scale: readNumberInput(sd35GuidanceInput, 4.0),
+    seed: readNumberInput(sd35SeedInput, null),
+    max_sequence_length: readNumberInput(sd35MaxSequenceInput, 512),
+  };
+}
+
 function getGenerationSettings() {
   const imageModel = imageModelInput?.value || defaultImageModel;
-  return {
+  const settings = {
     style_preset: stylePresetInput?.value || defaultStylePreset,
     image_model: imageModel,
+    sd35: getSd35Settings(),
   };
+
+  return settings;
 }
 
 function syncStyleDescription() {
@@ -255,6 +290,9 @@ function syncStyleControls() {
   }
 
   syncStyleDescription();
+  const showSd35Settings = (imageModelInput?.value || defaultImageModel) === "sd35_medium_local"
+    && !generationSettingsPanel?.classList.contains("hidden");
+  sd35SettingsPanel?.classList.toggle("hidden", !showSd35Settings);
 }
 
 function saveGenerationSettings() {
@@ -278,6 +316,26 @@ function loadGenerationSettings() {
       imageModelInput.value = imageModelOptions.includes(saved.image_model)
         ? saved.image_model
         : defaultImageModel;
+    }
+
+    const sd35 = saved.sd35 && typeof saved.sd35 === "object" ? saved.sd35 : {};
+    if (sd35StepsInput && Number.isFinite(Number(sd35.steps))) {
+      sd35StepsInput.value = sd35.steps;
+    }
+    if (sd35WidthInput && Number.isFinite(Number(sd35.width))) {
+      sd35WidthInput.value = sd35.width;
+    }
+    if (sd35HeightInput && Number.isFinite(Number(sd35.height))) {
+      sd35HeightInput.value = sd35.height;
+    }
+    if (sd35GuidanceInput && Number.isFinite(Number(sd35.guidance_scale))) {
+      sd35GuidanceInput.value = sd35.guidance_scale;
+    }
+    if (sd35SeedInput && Number.isFinite(Number(sd35.seed))) {
+      sd35SeedInput.value = sd35.seed;
+    }
+    if (sd35MaxSequenceInput && Number.isFinite(Number(sd35.max_sequence_length))) {
+      sd35MaxSequenceInput.value = sd35.max_sequence_length;
     }
   } catch (error) {
     console.warn("Could not load generation settings", error);
@@ -1712,8 +1770,9 @@ toggleSettingsButton.addEventListener("click", () => {
     "is-active",
     !generationSettingsPanel.classList.contains("hidden")
   );
+  syncStyleControls();
 });
-[stylePresetInput, imageModelInput].filter(Boolean).forEach((input) => {
+[stylePresetInput, imageModelInput, sd35StepsInput, sd35WidthInput, sd35HeightInput, sd35GuidanceInput, sd35SeedInput, sd35MaxSequenceInput].filter(Boolean).forEach((input) => {
   input.addEventListener("input", () => {
     syncStyleControls();
     saveGenerationSettings();
@@ -1821,6 +1880,10 @@ document.addEventListener("keydown", (event) => {
 mountHistoryAsMainView();
 loadGenerationSettings();
 syncStyleDescription();
+toggleSettingsButton?.classList.toggle(
+  "is-active",
+  !generationSettingsPanel?.classList.contains("hidden")
+);
 attachPressFeedback();
 renderHistoryCategoryTabs();
 syncGoogleAuthStatus();

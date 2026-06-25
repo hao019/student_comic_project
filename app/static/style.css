@@ -1407,6 +1407,25 @@ h1 {
   animation: settings-pop 0.28s cubic-bezier(0.2, 1.35, 0.35, 1);
 }
 
+.sd35-settings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: -0.25rem 0 1rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(34, 211, 238, 0.24);
+  border-radius: 8px;
+  background: rgba(8, 47, 73, 0.22);
+}
+
+.sd35-settings-note {
+  grid-column: 1 / -1;
+  margin: -0.1rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
 .settings-row {
   display: grid;
   gap: 0.4rem;
@@ -2206,6 +2225,10 @@ button:disabled {
   }
 
   .generation-settings {
+    grid-template-columns: 1fr;
+  }
+
+  .sd35-settings {
     grid-template-columns: 1fr;
   }
 

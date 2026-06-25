@@ -56,6 +56,21 @@ class GenerationSettings(BaseModel):
 
     style_preset: StylePreset = Field(default="cinematic_anime", description="Comic visual style preset")
     image_model: ImageModel = Field(default="sd35_medium_local", description="Image generation model")
+    sd35: Optional["SD35GenerationSettings"] = Field(
+        default=None,
+        description="Optional SD3.5 local image generation parameters",
+    )
+
+
+class SD35GenerationSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    steps: Optional[int] = Field(default=None, ge=1, le=100, description="SD3.5 inference steps")
+    width: Optional[int] = Field(default=None, ge=256, le=2048, description="SD3.5 target width or panel size baseline")
+    height: Optional[int] = Field(default=None, ge=256, le=2048, description="SD3.5 target height or panel size baseline")
+    guidance_scale: Optional[float] = Field(default=None, ge=0, le=20, description="SD3.5 CFG/FPG guidance scale")
+    seed: Optional[int] = Field(default=None, ge=0, le=2147483647, description="Optional generation seed")
+    max_sequence_length: Optional[int] = Field(default=None, ge=64, le=1024, description="SD3.5 T5 max sequence length")
 
 
 class NewsComicPagePanel(BaseModel):
@@ -105,6 +120,7 @@ class SD35ComicPagePanel(BaseModel):
     panel_title: str = Field(..., min_length=1, description="Short title shown in the composed panel")
     visual: str = Field(..., min_length=1, description="Traditional Chinese scene note for storyboard review")
     visual_prompt_en: str = Field(default="", description="Backup English prompt for one SD3.5 panel image")
+    must_show_en: List[str] = Field(default_factory=list, description="Mandatory visible evidence objects or actions for SD3.5")
     setting_en: str = Field(default="", description="Concrete physical setting for SD3.5")
     foreground_subject_en: str = Field(default="", description="Main visible foreground subject for SD3.5")
     action_en: str = Field(default="", description="Visible action or state for SD3.5")
@@ -117,7 +133,7 @@ class SD35ComicPagePanel(BaseModel):
     speech: List[str] = Field(default_factory=list, description="Short overlay narration lines")
     callouts: List[str] = Field(default_factory=list, description="Short overlay label text")
 
-    @field_validator("characters", "speech", "callouts", "props_en", "avoid_en", mode="before")
+    @field_validator("characters", "speech", "callouts", "must_show_en", "props_en", "avoid_en", mode="before")
     @classmethod
     def normalize_panel_lists(cls, value):
         return normalize_string_list(value)

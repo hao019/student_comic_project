@@ -22,6 +22,8 @@ HEADER_FILL = (255, 255, 255, 232)
 INK = (10, 14, 24, 255)
 SPEECH_FILL = (255, 255, 255, 238)
 WARNING_FILL = (255, 237, 120, 230)
+BADGE_FILL = (54, 109, 137, 235)
+BADGE_TEXT = (255, 255, 255, 255)
 
 
 def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -151,7 +153,23 @@ def _enhance_panel_image(image: Image.Image) -> Image.Image:
 
 
 def _draw_title(draw: ImageDraw.ImageDraw, script: ComicPageScript) -> None:
-    max_width = PAGE_SIZE - PAGE_MARGIN * 2
+    badge = _page_badge_text(script)
+    badge_w = 0
+    if badge:
+        badge_font = _font(28, bold=True)
+        badge_lines = _wrap_text(draw, badge, badge_font, 80, 2)
+        badge_w = 86
+        badge_h = 72
+        badge_box = (PAGE_MARGIN, PAGE_MARGIN - 6, PAGE_MARGIN + badge_w, PAGE_MARGIN - 6 + badge_h)
+        draw.rounded_rectangle(badge_box, radius=6, fill=BADGE_FILL)
+        line_y = badge_box[1] + 8
+        for line in badge_lines:
+            line_w = _text_width(draw, line, badge_font)
+            draw.text((badge_box[0] + (badge_w - line_w) // 2, line_y), line, font=badge_font, fill=BADGE_TEXT)
+            line_y += int(badge_font.size * 1.08)
+
+    title_x = PAGE_MARGIN + badge_w + (18 if badge else 0)
+    max_width = PAGE_SIZE - title_x - PAGE_MARGIN
     font, lines = _fit_text_lines(
         draw,
         script.title,
@@ -163,8 +181,27 @@ def _draw_title(draw: ImageDraw.ImageDraw, script: ComicPageScript) -> None:
     )
     y = PAGE_MARGIN - 4
     for line in lines:
-        draw.text((PAGE_MARGIN, y), line, font=font, fill=INK)
+        draw.text((title_x, y), line, font=font, fill=INK)
         y += int(font.size * 1.18) if hasattr(font, "size") else 34
+
+
+def _page_badge_text(script: ComicPageScript) -> str:
+    haystack = " ".join(
+        str(value or "")
+        for value in (
+            getattr(script, "title", ""),
+            getattr(script, "news_type", ""),
+            getattr(script, "summary", ""),
+            " ".join(getattr(script, "allowed_facts", []) or []),
+        )
+    )
+    if any(keyword in haystack for keyword in ("地震", "強震", "震度", "餘震")):
+        return "地震\n警示"
+    if any(keyword in haystack for keyword in ("豪雨", "暴雨", "大雨", "颱風", "淹水", "防汛")):
+        return "生活\n警示"
+    if any(keyword in haystack for keyword in ("防疫", "疾病", "醫療", "健康")):
+        return "健康\n警示"
+    return ""
 
 
 def _draw_text_lines(
@@ -183,18 +220,14 @@ def _draw_text_lines(
 
 
 def _narration_text(panel: dict) -> str:
+    title = str(panel.get("panel_title") or "").strip()
     main_text = str(panel.get("main_text") or "").strip()
-    parts = [main_text]
-    speech = [str(item).strip() for item in (panel.get("speech") or []) if str(item).strip()]
-    if speech:
-        parts.append(f"「{speech[0]}」")
-    return " / ".join(part for part in parts if part)
+    if main_text == title:
+        main_text = ""
+    return main_text
 
 
 def _panel_header_height(panel_w: int, panel: dict) -> int:
-    has_quote = bool([item for item in (panel.get("speech") or []) if str(item).strip()])
-    if has_quote:
-        return 78 if panel_w < 1000 else 84
     return 58 if panel_w < 1000 else 64
 
 
@@ -257,11 +290,11 @@ def _draw_callouts(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], ca
             bold=True,
         )
         if lines:
-            label_w = min(_text_width(draw, lines[0], font) + 34, x2 - x1 - 56)
+            label_w = min(_text_width(draw, lines[0], font) + 40, x2 - x1 - 56)
             label_h = (font.size if hasattr(font, "size") else 25) + 20
-            label_box = (x1 + PANEL_BORDER + 18, y1 + PANEL_BORDER + 18, x1 + PANEL_BORDER + 18 + label_w, y1 + PANEL_BORDER + 18 + label_h)
+            label_box = _primary_label_box(box, label_w, label_h)
             draw.rounded_rectangle(label_box, radius=8, fill=TAG_FILL, outline=INK, width=3)
-            draw.text((label_box[0] + 17, label_box[1] + 9), lines[0], font=font, fill=INK)
+            draw.text((label_box[0] + 20, label_box[1] + 9), lines[0], font=font, fill=INK)
 
     y = y2 - PANEL_BORDER - 14
     secondary_callouts = [str(item).strip() for item in callouts[1:3] if str(item).strip()]
@@ -287,6 +320,19 @@ def _draw_callouts(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], ca
         y -= 8
 
 
+def _primary_label_box(box: tuple[int, int, int, int], label_w: int, label_h: int) -> tuple[int, int, int, int]:
+    x1, y1, x2, y2 = box
+    panel_w = x2 - x1
+    panel_h = y2 - y1
+    if panel_w > panel_h * 1.65:
+        x = x1 + PANEL_BORDER + 24
+        y = y1 + PANEL_BORDER + 24
+    else:
+        x = x1 + PANEL_BORDER + 18
+        y = y1 + PANEL_BORDER + 18
+    return (x, y, min(x + label_w, x2 - PANEL_BORDER - 18), y + label_h)
+
+
 def _draw_speech_overlay(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], speech: list[str]) -> None:
     speech_lines = [str(item).strip() for item in speech if str(item).strip()]
     if not speech_lines:
@@ -294,13 +340,15 @@ def _draw_speech_overlay(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, in
 
     x1, y1, x2, y2 = box
     text = speech_lines[0]
-    bubble_w = min(x2 - x1 - 54, max(220, (x2 - x1) // 2))
+    measure_font = _font(24, bold=True)
+    desired_w = _text_width(draw, text, measure_font) + 72
+    bubble_w = min(x2 - x1 - 54, max(180, min(desired_w, 430, int((x2 - x1) * 0.46))))
     font, lines = _fit_text_lines(
         draw,
         text,
         max_width=bubble_w - 34,
         max_lines=2,
-        start_size=25,
+        start_size=24,
         min_size=17,
         bold=True,
     )
@@ -308,7 +356,7 @@ def _draw_speech_overlay(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, in
         return
 
     line_h = int(font.size * 1.18) if hasattr(font, "size") else 24
-    bubble_h = max(58, line_h * len(lines) + 28)
+    bubble_h = max(54, line_h * len(lines) + 26)
     bubble_x2 = x2 - PANEL_BORDER - 22
     bubble_x1 = bubble_x2 - bubble_w
     bubble_y1 = y1 + PANEL_BORDER + 18

@@ -178,8 +178,9 @@ Important:
 - Use Traditional Chinese for title, news_type, tone, summary, panel_title,
   visual, characters, main_text, speech, callouts, allowed_facts, and
   locked_text_blocks.
-- Use English only for visual_prompt_en, setting_en, foreground_subject_en,
-  action_en, props_en, composition_en, lighting_en, and avoid_en fields.
+- Use English only for visual_prompt_en, must_show_en, setting_en,
+  foreground_subject_en, action_en, props_en, composition_en, lighting_en,
+  and avoid_en fields.
 - The SD3.5 images must NOT contain readable text. All readable text will be
   added later by Pillow.
 - The page-level visual_prompt_en is only for shared visual continuity and topic
@@ -192,6 +193,20 @@ Important:
 - Do not spend the SD3.5 prompt budget on rich background detail. For each panel,
   choose 1 to 2 must-see key objects or actions and make them large in the
   foreground. Backgrounds should be simple and supportive.
+- Use a universal visual contract for every panel, regardless of topic:
+  1. Convert the panel's main claim into 1 to 3 visible must-show evidence items.
+  2. Put those items in must_show_en as concrete physical objects or visible actions.
+  3. Make props_en and action_en support must_show_en.
+  4. Make callouts[0] label the same main evidence as must_show_en[0].
+  5. Never let a panel rely only on mood, scenery, crowds, screens, or abstract ideas.
+- The first must_show_en item should be big enough to recognize at thumbnail
+  size, placed in the foreground or clear center, and occupy roughly one quarter
+  to one third of the frame when possible.
+- If the fact is abstract, translate it into a physical proxy: blank chart,
+  product box, map, document, equipment, barrier, warning sign, damaged object,
+  medical tool, supply bag, queue, meeting table, vehicle, uniform, or gesture.
+- The best panel is not the prettiest scene; it is the scene where the article's
+  key object or action is immediately readable at thumbnail size.
 - Keep visual_prompt_en as a short one-sentence backup summary. The structured
   *_en fields are the source of truth for SD3.5 image generation.
 - Do not mention speech bubbles, title bars, caption boxes, labels, typography,
@@ -216,6 +231,7 @@ Important:
 Panel visual_prompt_en rules:
 - One concrete English sentence per panel, no abstract concepts.
 - Also fill the structured English visual fields:
+  must_show_en: 1 to 3 concrete visible evidence items that must appear.
   setting_en: a physical location, not an idea.
   foreground_subject_en: the main visible person, group, or object.
   action_en: one visible action or state.
@@ -226,6 +242,9 @@ Panel visual_prompt_en rules:
 - Include concrete clothing, gestures, facial expressions, props, room/street
   depth, materials, and mood through those fields.
 - Prefer medium-wide or wide shots over close-up portraits.
+- composition_en must say how the main evidence is framed, such as "large
+  foreground object on the left", "centered damaged wall filling one third of
+  the frame", or "workers and barrier across the lower foreground".
 - Avoid abstract words in English visual fields, including: controversy,
   impact, backlash, anger, public opinion, power dynamic, symbolic, abstract,
   cyberspace, online atmosphere, historical dignity, national dignity, scandal,
@@ -239,6 +258,10 @@ Panel visual_prompt_en rules:
 - Props are more important than atmosphere. If a panel has facts such as money,
   rainfall, maps, warning, supplies, product boxes, missing discs, or official
   response, include visible physical objects that represent those facts.
+- must_show_en is stricter than props_en. If SD3.5 can only draw a few things,
+  these are the things that must remain. Avoid generic items such as "people",
+  "room", "screen", "city", "discussion", "reaction", or "atmosphere" unless
+  paired with a concrete object or action.
 - Put the most important prop first in props_en. It should be large, centered or
   foreground, unobstructed, and easy to recognize even if the image is viewed
   small. Keep background props fewer and simpler.
@@ -254,6 +277,13 @@ Panel visual_prompt_en rules:
   without evidence, and vague "future warning" imagery. The final panel should
   show a concrete response action or preparedness scene, not just people staring
   at the sky.
+- For earthquake news, structure panels around must-see evidence: magnitude or
+  intensity label, people taking cover under a table, fallen objects, cracked
+  wall or broken window, stretcher or first-aid kit for injuries, stopped train
+  or closed platform, seismograph wave screen, emergency radio, helmet, or
+  evacuation bag. Avoid distant scenic damage, generic damaged alleys, or tiny
+  rubble that is hard to read. Make the first callout a concrete fact such as
+  "規模6.9", "震度6強", "6人受傷", "新幹線停駛", or "嚴防餘震".
 - For entertainment, drama, film, game, idol, celebrity, or fandom controversy,
   frame images as modern news scenes: audience reactions, production sets,
   press rooms, studios, newsroom desks, public discussion, or behind-the-scenes
@@ -299,11 +329,12 @@ Return this exact JSON shape:
       "panel_title": "事件爆發",
       "visual": "文章核心事件的具體可畫場景",
       "visual_prompt_en": "A medium-wide editorial manga scene showing article-relevant people actively doing the main event in a realistic location, concrete unbranded props and non-readable visual aids, expressive gestures, natural editorial lighting, polished full-color comic art.",
+      "must_show_en": ["large blank diagram board", "speaker pointing at the board", "residents watching from chairs"],
       "setting_en": "a modern community meeting room with plain walls and blank notice boards",
       "foreground_subject_en": "two article-relevant adults in simple professional clothing facing residents",
       "action_en": "one adult points to a blank diagram board while residents watch and react",
       "props_en": ["blank diagram board", "folding chairs", "plain documents", "unbranded phone", "table microphone"],
-      "composition_en": "medium-wide eye-level shot with the speaker in the foreground and residents behind",
+      "composition_en": "medium-wide eye-level shot with the large diagram board and speaker filling the foreground third and residents behind",
       "lighting_en": "natural indoor daylight, balanced colors, clear editorial manga shading",
       "avoid_en": ["readable text", "logos", "floating icons", "abstract symbols", "extreme close-up"],
       "characters": ["主要人物或群體"],

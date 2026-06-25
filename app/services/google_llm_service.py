@@ -75,62 +75,45 @@ Important:
 - The news topic is not fixed. It may be politics, society, campus, technology,
   culture, sports, business, disaster, entertainment, international, health, or
   other.
-- First infer the news_type, story_shape, tone, and best panel_count.
-- Choose 4 to 6 panels based on article complexity:
-  * 4 panels: simple event with one cause and one result.
-  * 5 panels: normal news with conflict, reaction, response, and next step.
-  * 6 panels: complex news with multiple actors, numbers, timeline, or consequences.
+- First infer the news_type, story_shape, tone, attention/risk level, and best panel_count.
+- Prefer a dense "news guide" infographic structure like a social media news
+  explainer: headline, news category, tone, attention/risk level, summary, then
+  panel-by-panel evidence and reactions.
+- Prefer 6 panels for complex news with multiple actors, timeline, numbers,
+  institutional response, public reaction, risk, or consequences. Use 5 panels
+  for normal news with event, cause, response, and next step. Use 4 panels only
+  for very simple event news.
 - Build allowed_facts first. Include only article-supported names, groups,
   organizations, numbers, dates, places, and outcomes.
 - Build locked_text_blocks from those facts. These are the exact short text
   blocks that should appear in the image.
 - Use Traditional Chinese for all text.
 - Keep every text short and suitable for a readable news comic.
+- Preserve the article's core issue. Do not shift the focus toward behind-the-scenes
+  trivia, celebrity gossip, sequel speculation, or unrelated production news unless
+  the article itself is about those points.
+- For any article, make the page explain the core news question: what happened,
+  why it matters, who is involved, what evidence or numbers are known, what
+  authorities or stakeholders said, and what happens next.
+- For controversy/crisis articles, include anger, apology, investigation,
+  government response, compensation, petitions, or accountability only when the
+  article supports those facts.
+- For achievement/human-interest/trend articles, include the breakthrough,
+  reason, impact, beneficiary, expert view, and next step instead of forcing
+  anger or crisis framing.
+- Write header-style labels similar to: 新聞指南, 新聞類型, 言調, 關注等級.
+  These words do not need to be separate JSON fields; express them through
+  title, news_type, tone, summary, panel_title, main_text, and locked_text_blocks.
 - Also write visual_prompt_en fields in precise natural English for Stable
   Diffusion 3.5. These English prompts are for illustration only, not text.
 - Use cautious wording for allegations, disputes, unresolved claims, legal,
   financial, medical, or political issues.
 - Do not invent brands, people, numbers, or consequences not supported by the article.
 - Avoid asking for a generic four-panel story. This is a news explainer comic page.
-- Plan scenes like cinematic storyboards, not meeting-room summaries. Prefer
-  environment-led visuals with foreground, midground, background, light direction,
-  reflections, windows, streets, corridors, screens, desks, rain, dusk, or warm
-  indoor lamps when relevant.
-- Keep each panel visually simple and appealing: usually 1 to 3 main visible
-  people, clear silhouettes, expressive but not gloomy faces, and one obvious
-  action. Avoid crowded lineups, repeated talking-head interviews, or five
-  people staring at the viewer.
-- Use a visual emotional arc across the page: alert, investigation, tension,
-  reflection, hopeful next step. Do not make every panel equally dark or anxious.
-- For politics, elections, parties, parliaments, cabinets, or government news:
-  use neutral institutional news symbols such as parliament buildings, press
-  conferences, cabinet rooms, party campaign offices, ballot boxes, polling
-  boards, maps, microphones, documents, and adult officials.
-- For political public figures, do not ask the image model for a precise
-  recognizable front-facing portrait or celebrity-like likeness. Prefer generic
-  adult politicians, side views, back views, silhouettes, podium scenes, hands
-  signing papers, or environment-led compositions.
-- Political and business scenes should show adult politicians, journalists,
-  campaign staff, analysts, or voters in formal or everyday adult clothing.
-  Avoid teenagers, school uniforms, idol group styling, anime club meetings, or
-  student classroom energy unless the article is explicitly about students.
-- For health, medical, hospitals, clinics, screening, blood tests, chronic
-  disease, diabetes, heart, kidney, or vascular news: use adult doctors, nurses,
-  lab technicians, public health experts, adult patients, clinic rooms,
-  examination rooms, blood draw stations, laboratory benches, blank health
-  reports, abstract medical charts, and simplified non-graphic anatomy diagrams.
-- Medical scenes should feel professional, calm, and educational. Avoid teenage
-  idol-group compositions, school uniforms, romantic anime staging, graphic gore,
-  exposed organs, horror imagery, or crowded all-female character lineups unless
-  the article explicitly supports that scene.
-- For entertainment, film, streaming, actors, directors, drama series, or season
-  renewal news: use directors, actors, camera crews, studio rooms, press events,
-  audience reactions, blank screens, blank posters, and abstract streaming UI
-  shapes. Do not ask for readable show titles, platform logos, episode numbers,
-  "Season 2" text, or celebrity-like exact faces inside the illustration.
 
 Panel planning rules:
-- panel_title: 2 to 4 Chinese characters, like 焦點, 轉折, 回聲, 展望.
+- panel_title: 2 to 6 Chinese characters, matched to the article shape. Examples:
+  事件爆發, 關鍵背景, 爭議焦點, 官方回應, 專家看法, 民眾反應, 後續觀察, 成果亮點, 影響擴散.
 - visual: concrete visual description for the illustration.
 - visual_prompt_en: one detailed English sentence for Stable Diffusion 3.5.
   Use this structure: subject, action/state, environment/background,
@@ -141,49 +124,41 @@ Panel planning rules:
   Include concrete visual details such as clothing, gestures, facial expressions,
   room or street depth, background props, material textures, and lighting mood.
   Prefer medium shots and wide shots over close-up portraits.
-  For political news, include adult role words such as politician, journalist,
-  campaign staff, voter, analyst, parliament, press conference, ballot box,
-  polling board, or government office when relevant.
-  For medical news, include adult role words and places such as doctor, nurse,
-  patient, lab technician, clinic, hospital, blood test, health report,
-  abstract medical chart, or simplified anatomy diagram when relevant.
-  For entertainment news, use director, actor, film crew, studio, press event,
-  audience, blank screen, blank poster, or abstract streaming interface when
-  relevant. Never include readable show titles, logos, or season text.
 - characters: visible people or groups in the panel.
-- main_text: the most important readable text in that panel, 8 to 16 Chinese characters.
-- speech: 0 to 1 short quote or narration line, 5 to 10 Chinese characters.
+- main_text: the most important readable text in that panel, 10 to 24 Chinese characters.
+- speech: 0 to 2 short quote or narration lines, 6 to 16 Chinese characters each.
   This will be appended to the top narration bar, not drawn as a speech bubble.
-- callouts: 0 to 1 short label or annotation box, 4 to 10 Chinese characters.
+- callouts: 0 to 3 short labels or annotation boxes, 4 to 14 Chinese characters each.
 - Every panel_title, main_text, speech line, and callout must also appear in
   locked_text_blocks exactly.
 - Keep the whole page text short. Prefer fewer readable words over many tiny labels.
-  If a panel already has a clear panel_title and main_text, omit callouts.
-  Prefer empty callouts for entertainment, campus, health, and human-interest scenes.
-  Do not use platform names, brand names, actor names, or show titles as callouts
-  unless the article absolutely requires that exact visible label.
+  Use short blocks, but include enough concrete names, amounts, petition counts,
+  institutions, and responses to preserve the news.
+- Use punchy newspaper-style wording that matches the article. Good generic
+  examples: 關鍵轉折, 官方回應, 專家示警, 民眾關注, 數據曝光, 影響擴大,
+  後續待觀察, 政策上路, 產業震盪, 社會共鳴.
 
 Return this exact JSON shape:
 {{
-  "title": "新聞漫畫標題",
-  "news_type": "新聞類型",
+  "title": "新聞主題精準標題",
+  "news_type": "政治／社會／文化／娛樂／健康／財經／國際／科技等",
   "story_shape": "conflict | achievement | accident | policy_change | investigation | human_interest | announcement | crisis | trend | other",
-  "tone": "整體語氣",
-  "panel_count": 5,
-  "visual_prompt_en": "A single square editorial manga news explainer page with five clearly separated panels, clean black borders, visible gutters, multiple characters, soft color ink illustration, cinematic clinic and newsroom atmosphere.",
-  "summary": "一句話摘要",
-  "allowed_facts": ["人物或機構", "重要數字", "文章支持的事件"],
-  "locked_text_blocks": ["事件爆發", "短重點文字", "短對話", "短註解"],
+  "tone": "嚴肅／警示／溫暖／理性／懸疑／樂觀",
+  "panel_count": 6,
+  "visual_prompt_en": "A square Traditional Chinese current-affairs news guide manga infographic with six panels, bold black panel borders, headline area, category badges, article-specific scenes, stakeholders, evidence, response, and next-step visuals.",
+  "summary": "用一句話說明文章核心事件、原因、影響與後續。",
+  "allowed_facts": ["文章支持的人物或機構", "重要數字或日期", "核心事件", "回應或後續"],
+  "locked_text_blocks": ["事件爆發", "關鍵背景", "官方回應", "民眾反應", "後續觀察", "重要數字"],
   "panels": [
     {{
       "panel_id": 1,
-      "visual_prompt_en": "A medical expert and a concerned adult citizen review a health report together in a bright modern clinic, medium shot, soft daylight, clean editorial manga style with polished ink outlines.",
+      "visual_prompt_en": "A clear article-specific news scene showing the main event and key stakeholders, wide editorial manga panel, no readable text inside props.",
       "panel_title": "事件爆發",
-      "visual": "具體可畫的新聞場景",
-      "characters": ["角色或群體"],
-      "main_text": "短重點文字",
-      "speech": ["短對話"],
-      "callouts": ["短註解"]
+      "visual": "文章核心事件的具體可畫場景",
+      "characters": ["主要人物或群體"],
+      "main_text": "文章核心事件短句",
+      "speech": ["關鍵說法或反應"],
+      "callouts": ["重要數字", "關鍵標籤"]
     }}
   ]
 }}

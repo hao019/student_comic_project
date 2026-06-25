@@ -7,14 +7,17 @@ from app.services.gemini_image_service import (
 from app.services.sd35_medium_local_service import generate_comic_page_image as generate_sd35_medium_local
 
 
+DEFAULT_IMAGE_MODEL = "sd35_medium_local"
+
+
 class ImageGenerationError(RuntimeError):
     pass
 
 
 def get_image_model(generation_settings=None) -> str:
     if generation_settings is None:
-        return "gemini_image"
-    return getattr(generation_settings, "image_model", "gemini_image") or "gemini_image"
+        return DEFAULT_IMAGE_MODEL
+    return getattr(generation_settings, "image_model", DEFAULT_IMAGE_MODEL) or DEFAULT_IMAGE_MODEL
 
 
 def generate_comic_page_image(

@@ -308,17 +308,26 @@ def _sd35_plain_scene_rule() -> str:
 
 
 def _sd35_page_visual(script: NewsComicPageScript) -> str:
-    return _limit_words(_sd35_safe_page_context(script), 18)
+    prompt = (getattr(script, "visual_prompt_en", "") or "").strip()
+    if prompt:
+        return _limit_words(prompt, 34)
+    return (
+        "A square Traditional Chinese current-affairs news guide manga infographic with clearly separated panels, "
+        "headline area, news category badges, attention-level badge, article-specific scenes, "
+        "stakeholders, evidence, responses, and next-step visuals."
+    )
 
 
 def _sd35_panel_visuals(script: NewsComicPageScript) -> str:
     lines = []
     for panel in script.panels:
-        scene = _sd35_safe_panel_scene(script, panel.panel_id)
-        prompt = (
-            f"{scene['subject']}; {scene['composition']}; {scene['lighting']}"
-        )
-        lines.append(f"P{panel.panel_id}: {_limit_words(prompt, 22)}")
+        prompt = (getattr(panel, "visual_prompt_en", "") or "").strip()
+        if not prompt:
+            prompt = (
+                "A clear editorial news guide panel showing the article's main event, "
+                "stakeholders, response, and public reaction, medium-wide manga composition."
+            )
+        lines.append(f"P{panel.panel_id}: {_limit_words(prompt, 28)}")
     return "\n".join(lines)
 
 
@@ -429,11 +438,10 @@ def _build_sd35_medium_prompt(script: NewsComicPageScript, generation_settings: 
     color_rule = _sd35_color_consistency_rule(generation_settings)
     page_visual = _sd35_page_visual(script)
     panel_visuals = _sd35_panel_visuals(script)
-    context_guardrails = _sd35_context_guardrails(script)
 
     clip_prompt = (
-        f"A square editorial manga comic news explainer with {script.panel_count} separate panels, "
-        "visible gutters, clean black panel borders, expressive characters, soft color ink style."
+        f"A square Traditional Chinese news guide manga infographic with {script.panel_count} separate panels, "
+        "visible gutters, clean black panel borders, headline area, category badges, article-specific current-affairs scenes."
     )
 
     return f"""CLIP prompt:
@@ -443,11 +451,12 @@ T5 prompt:
 Create one square manga news page with exactly {script.panel_count} panels.
 Layout: {_sd35_layout_prompt(script)}.
 Direction: {page_visual}
-{context_guardrails}
 {color_rule}
 Style: {style_prompt}.
 Use visible gutters, black borders, medium or wide shots, expressive characters, clear environments.
-Avoid single scene, close-up portrait, dense writing, logos, watermarks, readable letters.
+Preserve concrete article facts, people, institutions, places, dates, numbers, impacts, reactions, and next steps through the scene plan.
+Match the article shape: crisis, achievement, accident, policy change, investigation, human interest, announcement, trend, or other.
+Avoid single scene, close-up portrait, generic empty rooms, unrelated trivia, logos, watermarks, readable letters inside the generated illustration.
 Panel plan:
 {panel_visuals}
 
@@ -466,8 +475,12 @@ def build_sd35_panel_prompt(
 
     page_visual = _sd35_page_visual(script)
     color_rule = _sd35_color_consistency_rule(generation_settings)
-    context_guardrails = _sd35_context_guardrails(script)
-    scene = _sd35_safe_panel_scene(script, panel.panel_id)
+    panel_visual = (getattr(panel, "visual_prompt_en", "") or "").strip()
+    if not panel_visual:
+        panel_visual = (
+            "A clear editorial manga news guide scene based on this panel's title, main text, "
+            "characters, and callouts, medium-wide composition with public-interest news atmosphere."
+        )
 
     clip_prompt = (
         "A high quality editorial manga comic panel, clear focal subject, expressive characters, "
@@ -479,21 +492,18 @@ def build_sd35_panel_prompt(
 
 T5 prompt:
 Create one standalone editorial manga news panel.
-Subject and action: {_limit_words(scene["subject"], 20)}
-Composition and framing: {_limit_words(scene["composition"], 14)}
-Lighting and color: {_limit_words(scene["lighting"], 14)}
+Scene: {_limit_words(panel_visual, 58)}
 Context: {_limit_words(page_visual, 18)}
-{context_guardrails}
 {color_rule}
 Style: {style_prompt}; crisp ink, natural hands, finished comic art.
-Keep anatomy coherent, faces appealing, body language readable.
+Keep anatomy coherent, faces appealing, body language readable, and the article's specific issue clear.
 {_sd35_plain_scene_rule()}
 Fill the illustration naturally from edge to edge without leaving large empty blank areas.
 Final image: polished manga news panel with clear storytelling."""
 
 
 def build_page_prompt(script: NewsComicPageScript, generation_settings: GenerationSettings | None = None) -> str:
-    image_model = getattr(generation_settings, "image_model", "gemini_image") if generation_settings else "gemini_image"
+    image_model = getattr(generation_settings, "image_model", "sd35_medium_local") if generation_settings else "sd35_medium_local"
     if image_model == "sd35_medium_local":
         return _build_sd35_medium_prompt(script, generation_settings)
     return _build_gemini_image_prompt(script, generation_settings)

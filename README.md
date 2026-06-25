@@ -59,7 +59,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 ```text
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_TEXT_MODEL=gemini-2.5-flash
+GEMINI_TEXT_MODEL=gemini-3.1-pro-preview
 GEMINI_IMAGE_MODEL=gemini-3.1-flash-image
 
 # Optional: local SD3.5 Medium image generation.

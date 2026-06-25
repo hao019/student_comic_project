@@ -1,21 +1,27 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TypeAlias
 
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
-from app.schemas import NewsComicPageScript
+from app.schemas import NewsComicPageScript, SD35ComicPageScript
+
+
+ComicPageScript: TypeAlias = NewsComicPageScript | SD35ComicPageScript
 
 
 PAGE_SIZE = 1600
 PAGE_MARGIN = 24
-TITLE_HEIGHT = 92
+TITLE_HEIGHT = 112
 GUTTER = 18
 PANEL_BORDER = 4
 TEXT_PAD = 14
 TAG_FILL = (255, 225, 92, 205)
 HEADER_FILL = (255, 255, 255, 232)
 INK = (10, 14, 24, 255)
+SPEECH_FILL = (255, 255, 255, 238)
+WARNING_FILL = (255, 237, 120, 230)
 
 
 def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -139,20 +145,20 @@ def _cover_image(image: Image.Image, size: tuple[int, int]) -> Image.Image:
 
 
 def _enhance_panel_image(image: Image.Image) -> Image.Image:
-    image = ImageEnhance.Contrast(image).enhance(1.06)
-    image = ImageEnhance.Color(image).enhance(1.04)
-    return image.filter(ImageFilter.UnsharpMask(radius=1.15, percent=85, threshold=3))
+    image = ImageEnhance.Contrast(image).enhance(1.04)
+    image = ImageEnhance.Color(image).enhance(1.03)
+    return image.filter(ImageFilter.UnsharpMask(radius=0.85, percent=45, threshold=4))
 
 
-def _draw_title(draw: ImageDraw.ImageDraw, script: NewsComicPageScript) -> None:
+def _draw_title(draw: ImageDraw.ImageDraw, script: ComicPageScript) -> None:
     max_width = PAGE_SIZE - PAGE_MARGIN * 2
     font, lines = _fit_text_lines(
         draw,
         script.title,
         max_width=max_width,
         max_lines=2,
-        start_size=44,
-        min_size=28,
+        start_size=56,
+        min_size=34,
         bold=True,
     )
     y = PAGE_MARGIN - 4
@@ -180,16 +186,16 @@ def _narration_text(panel: dict) -> str:
     main_text = str(panel.get("main_text") or "").strip()
     parts = [main_text]
     speech = [str(item).strip() for item in (panel.get("speech") or []) if str(item).strip()]
-    if speech and len(main_text + speech[0]) <= 18:
-        parts.append(speech[0])
+    if speech:
+        parts.append(f"「{speech[0]}」")
     return " / ".join(part for part in parts if part)
 
 
 def _panel_header_height(panel_w: int, panel: dict) -> int:
     has_quote = bool([item for item in (panel.get("speech") or []) if str(item).strip()])
     if has_quote:
-        return 54 if panel_w < 1000 else 58
-    return 46 if panel_w < 1000 else 50
+        return 78 if panel_w < 1000 else 84
+    return 58 if panel_w < 1000 else 64
 
 
 def _draw_panel_header(draw: ImageDraw.ImageDraw, header_box: tuple[int, int, int, int], panel: dict) -> int:
@@ -204,16 +210,16 @@ def _draw_panel_header(draw: ImageDraw.ImageDraw, header_box: tuple[int, int, in
         tag,
         max_width=max(86, panel_w // 4),
         max_lines=1,
-        start_size=22,
-        min_size=16,
+        start_size=28,
+        min_size=20,
         bold=True,
     )
     tag_text = tag_lines[0] if tag_lines else tag
-    tag_w = min(max(_text_width(draw, tag_text, tag_font) + 24, 86), panel_w // 3)
+    tag_w = min(max(_text_width(draw, tag_text, tag_font) + 30, 108), panel_w // 3)
     tag_box = (header_box[0], header_box[1], header_box[0] + tag_w, header_box[3])
     draw.rectangle(tag_box, fill=TAG_FILL, outline=INK, width=2)
     tag_y = tag_box[1] + max(4, (header_h - (tag_font.size if hasattr(tag_font, "size") else 20)) // 2 - 1)
-    draw.text((tag_box[0] + 12, tag_y), tag_text, font=tag_font, fill=INK)
+    draw.text((tag_box[0] + 15, tag_y), tag_text, font=tag_font, fill=INK)
 
     main_text = _narration_text(panel)
     main_x = tag_box[2] + 12
@@ -222,9 +228,9 @@ def _draw_panel_header(draw: ImageDraw.ImageDraw, header_box: tuple[int, int, in
         draw,
         main_text,
         max_width=main_w,
-        max_lines=2,
-        start_size=22,
-        min_size=15,
+        max_lines=2 if header_h < 62 else 3,
+        start_size=28,
+        min_size=18,
         bold=True,
     )
     line_h = int(main_font.size * 1.15) if hasattr(main_font, "size") else 22
@@ -239,27 +245,108 @@ def _draw_callouts(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], ca
         return
 
     x1, y1, x2, y2 = box
+    primary = str(callouts[0]).strip() if callouts else ""
+    if primary:
+        font, lines = _fit_text_lines(
+            draw,
+            primary,
+            max_width=max(150, (x2 - x1) // 3),
+            max_lines=1,
+            start_size=25,
+            min_size=18,
+            bold=True,
+        )
+        if lines:
+            label_w = min(_text_width(draw, lines[0], font) + 34, x2 - x1 - 56)
+            label_h = (font.size if hasattr(font, "size") else 25) + 20
+            label_box = (x1 + PANEL_BORDER + 18, y1 + PANEL_BORDER + 18, x1 + PANEL_BORDER + 18 + label_w, y1 + PANEL_BORDER + 18 + label_h)
+            draw.rounded_rectangle(label_box, radius=8, fill=TAG_FILL, outline=INK, width=3)
+            draw.text((label_box[0] + 17, label_box[1] + 9), lines[0], font=font, fill=INK)
+
     y = y2 - PANEL_BORDER - 14
-    for callout in reversed([str(item).strip() for item in callouts[:1] if str(item).strip()]):
+    secondary_callouts = [str(item).strip() for item in callouts[1:3] if str(item).strip()]
+    for callout in reversed(secondary_callouts):
         font, lines = _fit_text_lines(
             draw,
             callout,
-            max_width=(x2 - x1) // 3,
+            max_width=max(132, (x2 - x1) // 3),
             max_lines=1,
-            start_size=18,
-            min_size=14,
+            start_size=23,
+            min_size=17,
             bold=True,
         )
         if not lines:
             continue
         text_w = _text_width(draw, lines[0], font)
-        tag_w = min(text_w + 24, x2 - x1 - 48)
-        tag_h = (font.size if hasattr(font, "size") else 18) + 14
+        tag_w = min(text_w + 30, x2 - x1 - 48)
+        tag_h = (font.size if hasattr(font, "size") else 23) + 18
         y -= tag_h
         tag_box = (x2 - PANEL_BORDER - 18 - tag_w, y, x2 - PANEL_BORDER - 18, y + tag_h)
         draw.rectangle(tag_box, fill=TAG_FILL, outline=INK, width=2)
-        draw.text((tag_box[0] + 12, tag_box[1] + 6), lines[0], font=font, fill=INK)
+        draw.text((tag_box[0] + 15, tag_box[1] + 8), lines[0], font=font, fill=INK)
         y -= 8
+
+
+def _draw_speech_overlay(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], speech: list[str]) -> None:
+    speech_lines = [str(item).strip() for item in speech if str(item).strip()]
+    if not speech_lines:
+        return
+
+    x1, y1, x2, y2 = box
+    text = speech_lines[0]
+    bubble_w = min(x2 - x1 - 54, max(220, (x2 - x1) // 2))
+    font, lines = _fit_text_lines(
+        draw,
+        text,
+        max_width=bubble_w - 34,
+        max_lines=2,
+        start_size=25,
+        min_size=17,
+        bold=True,
+    )
+    if not lines:
+        return
+
+    line_h = int(font.size * 1.18) if hasattr(font, "size") else 24
+    bubble_h = max(58, line_h * len(lines) + 28)
+    bubble_x2 = x2 - PANEL_BORDER - 22
+    bubble_x1 = bubble_x2 - bubble_w
+    bubble_y1 = y1 + PANEL_BORDER + 18
+    bubble_y2 = bubble_y1 + bubble_h
+    if bubble_y2 > y2 - 80:
+        return
+
+    draw.rounded_rectangle((bubble_x1, bubble_y1, bubble_x2, bubble_y2), radius=18, fill=SPEECH_FILL, outline=INK, width=3)
+    tail = [
+        (bubble_x2 - 52, bubble_y2 - 2),
+        (bubble_x2 - 18, bubble_y2 + 30),
+        (bubble_x2 - 86, bubble_y2 - 2),
+    ]
+    draw.polygon(tail, fill=SPEECH_FILL, outline=INK)
+    _draw_text_lines(draw, (bubble_x1 + 17, bubble_y1 + 14), lines, font)
+
+
+def _is_warning_panel(panel: dict) -> bool:
+    haystack = " ".join(
+        str(value or "")
+        for value in [
+            panel.get("panel_title"),
+            panel.get("main_text"),
+            panel.get("visual"),
+            " ".join(panel.get("callouts") or []),
+        ]
+    )
+    return any(keyword in haystack for keyword in ("警", "雨", "災", "汛", "颱", "防災", "豪雨", "淹水", "氣候"))
+
+
+def _draw_warning_icon(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int]) -> None:
+    x1, y1, _, _ = box
+    cx = x1 + 48
+    top = y1 + 20
+    points = [(cx, top), (cx - 34, top + 62), (cx + 34, top + 62)]
+    draw.polygon(points, fill=WARNING_FILL, outline=INK)
+    font = _font(34, bold=True)
+    draw.text((cx - 6, top + 16), "!", font=font, fill=INK)
 
 
 def _panel_regions(box: tuple[int, int, int, int], panel: dict) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]]:
@@ -270,7 +357,7 @@ def _panel_regions(box: tuple[int, int, int, int], panel: dict) -> tuple[tuple[i
     return header_box, image_box
 
 
-def panel_image_dimensions(script: NewsComicPageScript) -> dict[int, tuple[int, int]]:
+def panel_image_dimensions(script: ComicPageScript) -> dict[int, tuple[int, int]]:
     panels = [panel.model_dump() for panel in script.panels]
     boxes = _panel_boxes(script.panel_count)
     dimensions: dict[int, tuple[int, int]] = {}
@@ -284,11 +371,14 @@ def panel_image_dimensions(script: NewsComicPageScript) -> dict[int, tuple[int, 
 def _draw_panel_overlays(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], panel: dict) -> None:
     header_box, image_box = _panel_regions(box, panel)
     _draw_panel_header(draw, header_box, panel)
+    if _is_warning_panel(panel):
+        _draw_warning_icon(draw, image_box)
+    _draw_speech_overlay(draw, image_box, panel.get("speech") or [])
     _draw_callouts(draw, image_box, panel.get("callouts") or [])
 
 
 def compose_comic_page(
-    script: NewsComicPageScript,
+    script: ComicPageScript,
     panel_image_paths: dict[int, Path],
     output_path: Path,
 ) -> None:

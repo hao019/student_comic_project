@@ -5,7 +5,7 @@ import time
 from dotenv import load_dotenv
 from google import genai
 
-from app.schemas import NewsComicPageScript
+from app.schemas import NewsComicPageScript, SD35ComicPageScript
 
 
 load_dotenv()
@@ -13,10 +13,10 @@ load_dotenv()
 API_KEY = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=API_KEY)
 
-PRIMARY_TEXT_MODEL = os.getenv("GEMINI_TEXT_MODEL", "gemini-2.5-flash")
+PRIMARY_TEXT_MODEL = os.getenv("GEMINI_TEXT_MODEL", "gemini-3.1-pro-preview")
 TEXT_MODELS = list(dict.fromkeys([
     PRIMARY_TEXT_MODEL,
-    "gemini-2.5-flash-lite",
+    "gemini-3.1-flash-lite",
 ]))
 
 MAX_RETRIES_PER_MODEL = 3
@@ -104,8 +104,6 @@ Important:
 - Write header-style labels similar to: 新聞指南, 新聞類型, 言調, 關注等級.
   These words do not need to be separate JSON fields; express them through
   title, news_type, tone, summary, panel_title, main_text, and locked_text_blocks.
-- Also write visual_prompt_en fields in precise natural English for Stable
-  Diffusion 3.5. These English prompts are for illustration only, not text.
 - Use cautious wording for allegations, disputes, unresolved claims, legal,
   financial, medical, or political issues.
 - Do not invent brands, people, numbers, or consequences not supported by the article.
@@ -115,15 +113,6 @@ Panel planning rules:
 - panel_title: 2 to 6 Chinese characters, matched to the article shape. Examples:
   事件爆發, 關鍵背景, 爭議焦點, 官方回應, 專家看法, 民眾反應, 後續觀察, 成果亮點, 影響擴散.
 - visual: concrete visual description for the illustration.
-- visual_prompt_en: one detailed English sentence for Stable Diffusion 3.5.
-  Use this structure: subject, action/state, environment/background,
-  lighting/camera, style/quality. Do not mention speech bubbles, title bars,
-  caption boxes, labels, readable text, Chinese, Japanese, English letters, or
-  numbers. If the scene needs screens, phones, papers, signs, posters, uniforms,
-  or documents, describe them as blank or abstract props with no markings.
-  Include concrete visual details such as clothing, gestures, facial expressions,
-  room or street depth, background props, material textures, and lighting mood.
-  Prefer medium shots and wide shots over close-up portraits.
 - characters: visible people or groups in the panel.
 - main_text: the most important readable text in that panel, 10 to 24 Chinese characters.
 - speech: 0 to 2 short quote or narration lines, 6 to 16 Chinese characters each.
@@ -145,14 +134,12 @@ Return this exact JSON shape:
   "story_shape": "conflict | achievement | accident | policy_change | investigation | human_interest | announcement | crisis | trend | other",
   "tone": "嚴肅／警示／溫暖／理性／懸疑／樂觀",
   "panel_count": 6,
-  "visual_prompt_en": "A square Traditional Chinese current-affairs news guide manga infographic with six panels, bold black panel borders, headline area, category badges, article-specific scenes, stakeholders, evidence, response, and next-step visuals.",
   "summary": "用一句話說明文章核心事件、原因、影響與後續。",
   "allowed_facts": ["文章支持的人物或機構", "重要數字或日期", "核心事件", "回應或後續"],
   "locked_text_blocks": ["事件爆發", "關鍵背景", "官方回應", "民眾反應", "後續觀察", "重要數字"],
   "panels": [
     {{
       "panel_id": 1,
-      "visual_prompt_en": "A clear article-specific news scene showing the main event and key stakeholders, wide editorial manga panel, no readable text inside props.",
       "panel_title": "事件爆發",
       "visual": "文章核心事件的具體可畫場景",
       "characters": ["主要人物或群體"],
@@ -169,6 +156,170 @@ News article:
 
     data = generate_json(prompt)
     return NewsComicPageScript.model_validate(data)
+
+
+def generate_sd35_comic_page_script(article_text: str) -> SD35ComicPageScript:
+    prompt = f"""
+You are a Traditional Chinese news comic director for a Stable Diffusion 3.5
+panel-by-panel pipeline.
+
+Read the news article and create an SD3.5-specific comic script. This pipeline
+is separate from the Gemini Image / Nano Banana one-page image pipeline:
+- The LLM does article understanding and panel planning.
+- SD3.5 generates each panel illustration separately.
+- Pillow composes the final page and overlays Traditional Chinese text.
+
+Return ONLY valid JSON. Do not use Markdown fences.
+
+Important:
+- First infer the news_type, story_shape, tone, and best panel_count.
+- Prefer 6 panels for complex news, 5 panels for normal news, and 4 panels only
+  for simple event news.
+- Use Traditional Chinese for title, news_type, tone, summary, panel_title,
+  visual, characters, main_text, speech, callouts, allowed_facts, and
+  locked_text_blocks.
+- Use English only for visual_prompt_en, setting_en, foreground_subject_en,
+  action_en, props_en, composition_en, lighting_en, and avoid_en fields.
+- The SD3.5 images must NOT contain readable text. All readable text will be
+  added later by Pillow.
+- The page-level visual_prompt_en is only for shared visual continuity and topic
+  context. Do not describe a full comic page, panel borders, headline areas,
+  badges, infographic layout, or typography there.
+- Build SD3.5 visual fields as concrete camera directions, not abstract
+  summaries. SD3.5 is weak at reasoning from abstract natural language, so every
+  panel must specify physical setting, foreground subject, visible action,
+  visible props, composition, lighting, and avoid terms.
+- Do not spend the SD3.5 prompt budget on rich background detail. For each panel,
+  choose 1 to 2 must-see key objects or actions and make them large in the
+  foreground. Backgrounds should be simple and supportive.
+- Keep visual_prompt_en as a short one-sentence backup summary. The structured
+  *_en fields are the source of truth for SD3.5 image generation.
+- Do not mention speech bubbles, title bars, caption boxes, labels, typography,
+  readable text, Chinese characters, Japanese characters, English letters,
+  numbers, logos, watermarks, UI screenshots, or posters with writing in
+  visual_prompt_en.
+- Preserve article-supported facts. Do not invent names, numbers, dates,
+  causes, accusations, medical claims, legal outcomes, or consequences.
+- Do not invent weather or time of day. Mention rain, storm, night, sunset, or
+  dramatic blue lighting only if the article or the panel visual specifically
+  needs it.
+- Keep overlay text short because it will be drawn in panel headers.
+- Every panel_title, main_text, speech line, and callout must also appear in
+  locked_text_blocks exactly.
+- Treat callouts as mandatory visible emphasis labels added by Pillow. Write
+  callouts as concrete key-object or key-fact labels, not vague moods. Good
+  examples: "暴雨警報", "破600毫米", "氣流交會", "防汛沙包", "避難提醒",
+  "空盒爭議", "80美元", "預購開跑".
+- The first callout should name the most important object/fact in the panel.
+  The SD3.5 image should visibly support that first callout.
+
+Panel visual_prompt_en rules:
+- One concrete English sentence per panel, no abstract concepts.
+- Also fill the structured English visual fields:
+  setting_en: a physical location, not an idea.
+  foreground_subject_en: the main visible person, group, or object.
+  action_en: one visible action or state.
+  props_en: 3 to 6 concrete visible props, no brand names, no text.
+  composition_en: camera distance, angle, and framing.
+  lighting_en: realistic lighting and color.
+  avoid_en: 3 to 6 things SD3.5 should not draw for this panel.
+- Include concrete clothing, gestures, facial expressions, props, room/street
+  depth, materials, and mood through those fields.
+- Prefer medium-wide or wide shots over close-up portraits.
+- Avoid abstract words in English visual fields, including: controversy,
+  impact, backlash, anger, public opinion, power dynamic, symbolic, abstract,
+  cyberspace, online atmosphere, historical dignity, national dignity, scandal,
+  issue, concern. Replace them with visible people, objects, settings, and
+  actions.
+- Avoid abstract-only, scenery-only, icon-only, sky-only, or empty-room panels.
+  Every panel must have a clear foreground subject: people doing the article's
+  action, or concrete article-relevant objects such as mosquito larvae, water
+  containers, clinic equipment, community classrooms, blank health charts, or
+  cleaning tools.
+- Props are more important than atmosphere. If a panel has facts such as money,
+  rainfall, maps, warning, supplies, product boxes, missing discs, or official
+  response, include visible physical objects that represent those facts.
+- Put the most important prop first in props_en. It should be large, centered or
+  foreground, unobstructed, and easy to recognize even if the image is viewed
+  small. Keep background props fewer and simpler.
+- For education, health, policy, finance, or technology news, show the actual
+  work process and physical evidence through non-readable diagrams, devices,
+  props, environments, gestures, and stakeholder reactions.
+- For weather, disaster, extreme climate, traffic disruption, public safety, or
+  emergency-preparedness news, every panel must show concrete evidence or action:
+  visible rain intensity, water depth, flooded curb, sandbags, blocked drains,
+  rain gear, cleanup tools, weather office staff, blank radar maps with simple
+  colored cloud shapes, emergency supplies, or people preparing at home. Avoid
+  symbolic climate scenes, generic crowds looking at clouds, empty streets
+  without evidence, and vague "future warning" imagery. The final panel should
+  show a concrete response action or preparedness scene, not just people staring
+  at the sky.
+- For entertainment, drama, film, game, idol, celebrity, or fandom controversy,
+  frame images as modern news scenes: audience reactions, production sets,
+  press rooms, studios, newsroom desks, public discussion, or behind-the-scenes
+  work. If showing a historical/fantasy/costume drama moment, include visible
+  production cues such as camera rigs, crew silhouettes, lights, blank monitors,
+  boom microphones, or an unmarked clapperboard, so it reads as a drama set, not
+  real history. Do not create immersive palace/fantasy scenes as if they were
+  real events.
+- For online backlash, avoid abstract cyberspace, floating icons, code screens,
+  or UI overlays. Show people reacting to blank phones, tablets, newsroom
+  monitors, or a public discussion setting instead.
+- For future outlook, market observation, industry impact, price analysis, or
+  business trend panels, avoid sci-fi control rooms, massive surveillance walls,
+  glowing cyber dashboards, server rooms, and abstract data tunnels. Use
+  concrete news/business settings instead: a small analyst desk, game store
+  counter, newsroom meeting table, publisher office, customer line, blank chart
+  on one screen, printed non-readable reports, or people discussing physical
+  product boxes.
+- Keep people generic unless the article describes a public role; avoid exact
+  celebrity likeness or brand logos.
+- Build character_reference_en when the same person, group, host, actor,
+  analyst, or mascot appears in multiple panels. Use stable visual design notes:
+  approximate age, hair color and length, outfit family, body type, posture, and
+  one identifying accessory. Reuse these notes in panel foreground/action fields.
+  For real public figures, do not request exact likeness; describe a generic
+  role-based character with consistent features.
+
+Return this exact JSON shape:
+{{
+  "title": "新聞漫畫標題",
+  "news_type": "新聞類型",
+  "story_shape": "conflict | achievement | accident | policy_change | investigation | human_interest | announcement | crisis | trend | other",
+  "tone": "嚴肅／警示／溫暖／理性／懸疑／樂觀",
+  "panel_count": 6,
+  "visual_prompt_en": "Cinematic current-affairs manga news atmosphere with consistent article-specific locations, expressive body language, concrete real-world props, natural editorial lighting, polished full-color comic art, no readable text.",
+  "character_reference_en": ["Main spokesperson: generic middle-aged woman, short dark hair, navy blazer, calm serious posture, small silver earrings"],
+  "summary": "用一句話說明文章核心事件、原因、影響與後續。",
+  "allowed_facts": ["文章支持的人物或機構", "重要數字或日期", "核心事件", "回應或後續"],
+  "locked_text_blocks": ["事件爆發", "關鍵背景", "官方回應", "民眾反應", "後續觀察", "重要數字"],
+  "panels": [
+    {{
+      "panel_id": 1,
+      "panel_title": "事件爆發",
+      "visual": "文章核心事件的具體可畫場景",
+      "visual_prompt_en": "A medium-wide editorial manga scene showing article-relevant people actively doing the main event in a realistic location, concrete unbranded props and non-readable visual aids, expressive gestures, natural editorial lighting, polished full-color comic art.",
+      "setting_en": "a modern community meeting room with plain walls and blank notice boards",
+      "foreground_subject_en": "two article-relevant adults in simple professional clothing facing residents",
+      "action_en": "one adult points to a blank diagram board while residents watch and react",
+      "props_en": ["blank diagram board", "folding chairs", "plain documents", "unbranded phone", "table microphone"],
+      "composition_en": "medium-wide eye-level shot with the speaker in the foreground and residents behind",
+      "lighting_en": "natural indoor daylight, balanced colors, clear editorial manga shading",
+      "avoid_en": ["readable text", "logos", "floating icons", "abstract symbols", "extreme close-up"],
+      "characters": ["主要人物或群體"],
+      "main_text": "核心事件短句",
+      "speech": ["短句一"],
+      "callouts": ["重點標籤"]
+    }}
+  ]
+}}
+
+News article:
+{article_text}
+"""
+
+    data = generate_json(prompt)
+    return SD35ComicPageScript.model_validate(data)
 
 
 def generate_sample_article() -> dict:

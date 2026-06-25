@@ -235,20 +235,13 @@ async function loadSampleArticle() {
 function getGenerationSettings() {
   const imageModel = imageModelInput?.value || defaultImageModel;
   return {
-    style_preset: imageModel === "sd35_medium_local"
-      ? defaultStylePreset
-      : stylePresetInput?.value || defaultStylePreset,
+    style_preset: stylePresetInput?.value || defaultStylePreset,
     image_model: imageModel,
   };
 }
 
 function syncStyleDescription() {
   if (!styleDescription) {
-    return;
-  }
-
-  if (imageModelInput?.value === "sd35_medium_local") {
-    styleDescription.textContent = "SD3.5 本地版目前固定使用電影感日系漫畫風格。";
     return;
   }
 
@@ -261,11 +254,6 @@ function syncStyleControls() {
     return;
   }
 
-  const isLocalModel = imageModelInput?.value === "sd35_medium_local";
-  stylePresetInput.disabled = isLocalModel;
-  if (isLocalModel) {
-    stylePresetInput.value = defaultStylePreset;
-  }
   syncStyleDescription();
 }
 

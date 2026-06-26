@@ -120,7 +120,9 @@ class SD35ComicPagePanel(BaseModel):
     panel_title: str = Field(..., min_length=1, description="Short title shown in the composed panel")
     visual: str = Field(..., min_length=1, description="Traditional Chinese scene note for storyboard review")
     visual_prompt_en: str = Field(default="", description="Backup English prompt for one SD3.5 panel image")
+    evidence_type_en: str = Field(default="", description="Generic news evidence role for this panel")
     must_show_en: List[str] = Field(default_factory=list, description="Mandatory visible evidence objects or actions for SD3.5")
+    proxy_objects_en: List[str] = Field(default_factory=list, description="Concrete proxy objects that turn abstract news into visible evidence")
     setting_en: str = Field(default="", description="Concrete physical setting for SD3.5")
     foreground_subject_en: str = Field(default="", description="Main visible foreground subject for SD3.5")
     action_en: str = Field(default="", description="Visible action or state for SD3.5")
@@ -133,7 +135,7 @@ class SD35ComicPagePanel(BaseModel):
     speech: List[str] = Field(default_factory=list, description="Short overlay narration lines")
     callouts: List[str] = Field(default_factory=list, description="Short overlay label text")
 
-    @field_validator("characters", "speech", "callouts", "must_show_en", "props_en", "avoid_en", mode="before")
+    @field_validator("characters", "speech", "callouts", "must_show_en", "proxy_objects_en", "props_en", "avoid_en", mode="before")
     @classmethod
     def normalize_panel_lists(cls, value):
         return normalize_string_list(value)

@@ -173,14 +173,16 @@ Return ONLY valid JSON. Do not use Markdown fences.
 
 Important:
 - First infer the news_type, story_shape, tone, and best panel_count.
-- Prefer 6 panels for complex news, 5 panels for normal news, and 4 panels only
-  for simple event news.
+- Prefer 6 panels by default for SD3.5 news explainer pages, because SD3.5
+  works better when each panel has one simple claim and one clear evidence
+  object. Use 5 panels only for short normal news with very few facts, and 4
+  panels only for extremely simple event news.
 - Use Traditional Chinese for title, news_type, tone, summary, panel_title,
   visual, characters, main_text, speech, callouts, allowed_facts, and
   locked_text_blocks.
-- Use English only for visual_prompt_en, must_show_en, setting_en,
-  foreground_subject_en, action_en, props_en, composition_en, lighting_en,
-  and avoid_en fields.
+- Use English only for visual_prompt_en, evidence_type_en, must_show_en,
+  proxy_objects_en, setting_en, foreground_subject_en, action_en, props_en,
+  composition_en, lighting_en, and avoid_en fields.
 - The SD3.5 images must NOT contain readable text. All readable text will be
   added later by Pillow.
 - The page-level visual_prompt_en is only for shared visual continuity and topic
@@ -193,20 +195,48 @@ Important:
 - Do not spend the SD3.5 prompt budget on rich background detail. For each panel,
   choose 1 to 2 must-see key objects or actions and make them large in the
   foreground. Backgrounds should be simple and supportive.
+- Plan the page like a social-media news explainer comic, closer to a clean
+  illustrated information card than a cinematic storyboard. Each panel should
+  contain: one large evidence object, one simple human reaction or gesture, and
+  one supporting proxy object such as a blank poster, phone, photo, map,
+  document, book, screen, chart, product box, queue, city silhouette, or table.
 - Use a universal visual contract for every panel, regardless of topic:
-  1. Convert the panel's main claim into 1 to 3 visible must-show evidence items.
-  2. Put those items in must_show_en as concrete physical objects or visible actions.
-  3. Make props_en and action_en support must_show_en.
-  4. Make callouts[0] label the same main evidence as must_show_en[0].
-  5. Never let a panel rely only on mood, scenery, crowds, screens, or abstract ideas.
+  1. Assign evidence_type_en from this fixed taxonomy:
+     event_scene | data_or_amount | document_or_decision | place_or_route |
+     stakeholder_reaction | process_or_timeline | risk_or_warning |
+     impact_or_consequence | response_or_solution | future_next_step.
+  2. Convert the panel's main claim into 1 to 3 visible must-show evidence items.
+  3. Put those items in must_show_en as concrete physical objects or visible actions.
+  4. Add 2 to 4 proxy_objects_en: physical objects that make the abstract claim visible.
+  5. Make props_en and action_en support must_show_en and proxy_objects_en.
+  6. Make callouts[0] label the same main evidence as must_show_en[0].
+  7. Never let a panel rely only on mood, scenery, crowds, screens, or abstract ideas.
+- Use this topic-agnostic evidence mapping instead of inventing cinematic scenes:
+  event -> place + actors + key object/action;
+  data/amount -> large blank chart, counter, stack, scale, map marker, product pile;
+  document/decision -> folder, stamp-like blank block, handoff, committee table, podium;
+  reaction -> people with blank phones, audience seats, comment cards, discussion table;
+  process/timeline -> sequence of objects, arrows implied by arrangement, calendar, checklist;
+  risk/warning -> warning triangle, barrier, safety gear, damaged object, weather map;
+  impact -> affected person, closed door, empty shelf, stopped vehicle, bill, damaged site;
+  response/solution -> worker action, supplies, repair tools, clinic desk, help counter;
+  future/next step -> calendar, checklist, monitoring screen with abstract shapes, waiting queue.
 - The first must_show_en item should be big enough to recognize at thumbnail
   size, placed in the foreground or clear center, and occupy roughly one quarter
   to one third of the frame when possible.
+- The first must_show_en item should usually be an object, evidence item, tool,
+  chart, food, vehicle, damaged object, supply, map, or physical action. Do not
+  make a generic doctor, expert, official, analyst, student, crowd, room, or
+  screen the first must_show_en item unless that person/action is the actual
+  news evidence.
 - If the fact is abstract, translate it into a physical proxy: blank chart,
   product box, map, document, equipment, barrier, warning sign, damaged object,
   medical tool, supply bag, queue, meeting table, vehicle, uniform, or gesture.
 - The best panel is not the prettiest scene; it is the scene where the article's
   key object or action is immediately readable at thumbnail size.
+- Avoid lonely symbolic scenes such as one person looking out a window, one
+  person in a blank room, distant city views, empty corridors, or generic
+  audience seats unless a concrete article object fills the foreground.
 - Keep visual_prompt_en as a short one-sentence backup summary. The structured
   *_en fields are the source of truth for SD3.5 image generation.
 - Do not mention speech bubbles, title bars, caption boxes, labels, typography,
@@ -219,6 +249,10 @@ Important:
   dramatic blue lighting only if the article or the panel visual specifically
   needs it.
 - Keep overlay text short because it will be drawn in panel headers.
+- Keep speech very short, like a reaction sticker, not an article summary.
+  Use 4 to 10 Traditional Chinese characters per speech line.
+- Keep callouts short and object-like, ideally 2 to 7 Traditional Chinese
+  characters. Avoid long sentence callouts.
 - Every panel_title, main_text, speech line, and callout must also appear in
   locked_text_blocks exactly.
 - Treat callouts as mandatory visible emphasis labels added by Pillow. Write
@@ -232,6 +266,7 @@ Panel visual_prompt_en rules:
 - One concrete English sentence per panel, no abstract concepts.
 - Also fill the structured English visual fields:
   must_show_en: 1 to 3 concrete visible evidence items that must appear.
+  proxy_objects_en: 2 to 4 concrete objects that make the claim visible.
   setting_en: a physical location, not an idea.
   foreground_subject_en: the main visible person, group, or object.
   action_en: one visible action or state.
@@ -262,12 +297,46 @@ Panel visual_prompt_en rules:
   these are the things that must remain. Avoid generic items such as "people",
   "room", "screen", "city", "discussion", "reaction", or "atmosphere" unless
   paired with a concrete object or action.
+- Avoid making professionals or presenters dominate the frame when the article
+  is about evidence. Put the evidence object first and make the professional
+  point at it, hold it, compare it, test it, or explain it.
 - Put the most important prop first in props_en. It should be large, centered or
   foreground, unobstructed, and easy to recognize even if the image is viewed
   small. Keep background props fewer and simpler.
+- Every panel should include at least one secondary visual anchor besides the
+  main subject: blank movie poster, queue barrier, family photo, book stack,
+  phone comment screen with non-readable blobs, unmarked news monitor, blank
+  chart, simple map shape, table items, or city background silhouette. This
+  prevents empty cinematic scenes.
+- Do not choose proxy_objects_en from the same small set every time. Match the
+  article's concrete nouns, roles, places, and consequences. If the article is
+  about education, use classroom items; finance, use bills, receipts, counters,
+  product boxes, charts; technology, use devices, lab benches, cable rigs,
+  prototype parts; entertainment, use posters, audience seats, cameras, phones;
+  sports, use field equipment, scoreboard-like blank board, uniforms; crime or
+  legal disputes, use report folders, evidence bags without text, courthouse
+  exterior only when judicial; international affairs, use maps and meeting
+  tables without flags or emblems.
 - For education, health, policy, finance, or technology news, show the actual
   work process and physical evidence through non-readable diagrams, devices,
   props, environments, gestures, and stakeholder reactions.
+- For politics, budget, lawmaking, legislative review, public funding, defense
+  funding, or institutional conflict news, show the process with concrete
+  institutional evidence: plain legislative committee room, meeting table,
+  microphones, stacks of blank budget folders, non-readable vote board, simple
+  abstract budget chart, document handoff, negotiation table, press podium, or
+  officials pointing at papers. Do not make suited officials the main evidence;
+  make the budget folder, vote board, document stack, chart, or negotiation
+  table the main foreground object.
+- For budget or policy news, avoid courtrooms, judges, gavels unless the article
+  is judicial, foreign flags, national emblems, seals, ornate halls, military
+  propaganda posters, fake readable interfaces, and documents filled with
+  readable pseudo-text.
+- For health or nutrition news, translate abstract advice into concrete objects:
+  sunlight and shade on skin, supplement bottle without brand text, food tray,
+  eggs, fish, milk carton without text, blood vial, lab tube, blank test report,
+  nutrition checklist, measuring cup, calendar, clinic desk, or doctor pointing
+  at a simple non-readable chart.
 - For weather, disaster, extreme climate, traffic disruption, public safety, or
   emergency-preparedness news, every panel must show concrete evidence or action:
   visible rain intensity, water depth, flooded curb, sandbags, blocked drains,
@@ -318,7 +387,7 @@ Return this exact JSON shape:
   "story_shape": "conflict | achievement | accident | policy_change | investigation | human_interest | announcement | crisis | trend | other",
   "tone": "嚴肅／警示／溫暖／理性／懸疑／樂觀",
   "panel_count": 6,
-  "visual_prompt_en": "Cinematic current-affairs manga news atmosphere with consistent article-specific locations, expressive body language, concrete real-world props, natural editorial lighting, polished full-color comic art, no readable text.",
+  "visual_prompt_en": "Bright social-media current-affairs manga news explainer style with clean flat editorial color, simple illustrated information-card scenes, large concrete evidence objects, expressive generic people, uncluttered backgrounds, polished full-color comic art, no readable text.",
   "character_reference_en": ["Main spokesperson: generic middle-aged woman, short dark hair, navy blazer, calm serious posture, small silver earrings"],
   "summary": "用一句話說明文章核心事件、原因、影響與後續。",
   "allowed_facts": ["文章支持的人物或機構", "重要數字或日期", "核心事件", "回應或後續"],
@@ -329,7 +398,9 @@ Return this exact JSON shape:
       "panel_title": "事件爆發",
       "visual": "文章核心事件的具體可畫場景",
       "visual_prompt_en": "A medium-wide editorial manga scene showing article-relevant people actively doing the main event in a realistic location, concrete unbranded props and non-readable visual aids, expressive gestures, natural editorial lighting, polished full-color comic art.",
+      "evidence_type_en": "event_scene",
       "must_show_en": ["large blank diagram board", "speaker pointing at the board", "residents watching from chairs"],
+      "proxy_objects_en": ["blank diagram board", "folding chairs", "plain documents"],
       "setting_en": "a modern community meeting room with plain walls and blank notice boards",
       "foreground_subject_en": "two article-relevant adults in simple professional clothing facing residents",
       "action_en": "one adult points to a blank diagram board while residents watch and react",

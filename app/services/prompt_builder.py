@@ -8,15 +8,15 @@ ComicPageScript: TypeAlias = NewsComicPageScript | SD35ComicPageScript
 
 DEFAULT_STYLE_PRESET = "cinematic_anime"
 SD35_FIXED_STYLE_PROMPT = (
-    "clear editorial manga explainer style, bold readable silhouettes, simplified backgrounds, "
-    "large foreground news objects, clean manga linework, natural editorial color"
+    "bright social-media news explainer comic style, clean flat editorial color, bold readable silhouettes, "
+    "simple character illustrations, large foreground news objects, clear object hierarchy, minimal cinematic shading"
 )
 
 SD35_STYLE_PROMPTS = {
     "cinematic_anime": SD35_FIXED_STYLE_PROMPT,
     "default": (
-        "clean editorial news manga style, simplified everyday environments, clear character acting, "
-        "large key objects, balanced color, readable visual hierarchy"
+        "clean social-media news comic style, simplified everyday environments, clear character acting, "
+        "large key objects, bright balanced color, readable infographic hierarchy"
     ),
     "monochrome_draft": (
         "black-and-white manga manuscript style, crisp ink line art, screentone shading, strong contrast, "
@@ -32,7 +32,7 @@ SD35_STYLE_PROMPTS = {
     ),
     "infographic": (
         "editorial infographic manga style, clean organized composition, large simple icons and non-readable diagrams, "
-        "restrained color palette, clear scene logic, simplified backgrounds"
+        "bright restrained color palette, clear scene logic, simplified backgrounds, news explainer card feeling"
     ),
     "emotional": (
         "emotion-driven animated comic style, expressive body language, warm human lighting, soft painterly color, "
@@ -101,8 +101,9 @@ def _sd35_color_consistency_rule(generation_settings: GenerationSettings | None)
             "do not add full-color lighting."
         )
     return (
-        "Full-color manga with balanced natural colors. Match the article setting and season; "
-        "do not drift into grayscale, monochrome sketch, rain, night scenes, dramatic blue grading, or sunset unless the panel scene explicitly calls for it."
+        "Full-color news explainer comic with bright but controlled colors, cream paper whites, soft blue and yellow editorial accents, "
+        "and clean black outlines. Match the article setting and season; do not drift into grayscale, monochrome sketch, "
+        "washed-out pencil draft, rain, night scenes, dramatic blue grading, or sunset unless the panel scene explicitly calls for it."
     )
 
 
@@ -364,6 +365,45 @@ def _is_earthquake_news(script: ComicPageScript) -> bool:
     return any(keyword in haystack for keyword in earthquake_keywords)
 
 
+def _is_institutional_budget_news(script: ComicPageScript) -> bool:
+    haystack = " ".join(
+        str(value or "")
+        for value in (
+            script.title,
+            script.news_type,
+            script.story_shape,
+            script.summary,
+            " ".join(script.allowed_facts),
+        )
+    ).lower()
+    budget_keywords = [
+        "預算",
+        "特別預算",
+        "行政院",
+        "國會",
+        "立法院",
+        "委員會",
+        "審查",
+        "協商",
+        "封殺",
+        "法案",
+        "政策",
+        "國防",
+        "撥款",
+        "財政",
+        "budget",
+        "appropriation",
+        "legislature",
+        "parliament",
+        "committee",
+        "bill",
+        "policy",
+        "funding",
+        "defense",
+    ]
+    return any(keyword in haystack for keyword in budget_keywords)
+
+
 def _scene(subject: str, composition: str, lighting: str) -> dict[str, str]:
     return {
         "subject": subject,
@@ -446,10 +486,20 @@ def _sd35_context_guardrails(script: ComicPageScript) -> str:
             "and beautiful scenery that does not explain the news."
         )
 
+    if _is_institutional_budget_news(script):
+        guardrails.append(
+            "Institutional budget or policy news: show legislative committee rooms, plain meeting tables, microphones, "
+            "stacks of blank budget binders, folder piles, non-readable vote boards, simple abstract budget charts, "
+            "committee nameplates without text, and officials pointing at documents. The main evidence should be "
+            "budget folders, documents, charts, voting process, or negotiation table items, not suits or faces. "
+            "Avoid courtrooms, judges, gavels unless the article is judicial, foreign flags, national emblems, seals, "
+            "ornate palace halls, military propaganda posters, readable documents, and fake interface text."
+        )
+
     if _is_political_news(script):
         guardrails.append(
-            "Political: adult politicians, journalists, voters; parliament, podiums, ballot boxes, maps; "
-            "avoid celebrity likeness, teenagers, school uniforms."
+            "Political: adult politicians, journalists, voters; parliament, podiums, ballot boxes, maps, documents; "
+            "avoid celebrity likeness, teenagers, school uniforms, foreign flags, official seals, and courtroom imagery unless explicitly required."
         )
 
     if _is_medical_news(script):
@@ -484,13 +534,19 @@ def _sd35_panel_role(panel) -> str:
 
 
 def _sd35_focal_evidence(panel) -> str:
+    evidence_type = str(getattr(panel, "evidence_type_en", "") or "").strip()
     must_show = [str(item).strip() for item in (getattr(panel, "must_show_en", []) or []) if str(item).strip()]
+    proxies = [str(item).strip() for item in (getattr(panel, "proxy_objects_en", []) or []) if str(item).strip()]
     props = [str(item).strip() for item in (getattr(panel, "props_en", []) or []) if str(item).strip()]
     action = str(getattr(panel, "action_en", "") or "").strip()
     foreground = str(getattr(panel, "foreground_subject_en", "") or "").strip()
     evidence = []
+    if evidence_type:
+        evidence.append(f"evidence role: {evidence_type}")
     if must_show:
         evidence.append("must-show evidence: " + ", ".join(must_show[:3]))
+    if proxies:
+        evidence.append("proxy objects: " + ", ".join(proxies[:4]))
     if foreground:
         evidence.append(f"foreground subject: {foreground}")
     if action:
@@ -508,7 +564,9 @@ def _sd35_focal_evidence(panel) -> str:
 
 
 def _sd35_structured_panel_scene(panel) -> str:
+    evidence_type = str(getattr(panel, "evidence_type_en", "") or "").strip()
     must_show = [str(item).strip() for item in (getattr(panel, "must_show_en", []) or []) if str(item).strip()]
+    proxies = [str(item).strip() for item in (getattr(panel, "proxy_objects_en", []) or []) if str(item).strip()]
     setting = str(getattr(panel, "setting_en", "") or "").strip()
     foreground = str(getattr(panel, "foreground_subject_en", "") or "").strip()
     action = str(getattr(panel, "action_en", "") or "").strip()
@@ -519,8 +577,12 @@ def _sd35_structured_panel_scene(panel) -> str:
     callouts = [str(item).strip() for item in (getattr(panel, "callouts", []) or []) if str(item).strip()]
 
     structured_parts = []
+    if evidence_type:
+        structured_parts.append(f"Evidence role: {evidence_type}.")
     if must_show:
         structured_parts.append(f"Mandatory must-show evidence: {', '.join(must_show[:3])}.")
+    if proxies:
+        structured_parts.append(f"Concrete proxy objects: {', '.join(proxies[:4])}.")
     if setting:
         structured_parts.append(f"Setting: {setting}.")
     if foreground:
@@ -531,7 +593,7 @@ def _sd35_structured_panel_scene(panel) -> str:
         structured_parts.append(f"Visible props: {', '.join(props[:6])}.")
     if callouts:
         structured_parts.append(f"Key news labels that must be visually supported by objects/actions: {', '.join(callouts[:3])}.")
-    if must_show or props or callouts:
+    if must_show or proxies or props or callouts:
         structured_parts.append(
             "Make the must-show evidence and key props large, foreground, unobstructed, and easy to recognize at thumbnail size; "
             "the main evidence should occupy roughly one quarter to one third of the image area."
@@ -561,6 +623,7 @@ def _sd35_plain_scene_rule() -> str:
         "Make this a plain scene illustration with no graphic overlay layer. "
         "Screens, charts, posters, documents, and signs may show simple non-readable diagrams, icons, shapes, or blank blocks. "
         "Do not render readable text, letters, numbers, captions, logos, labels, or speech bubbles. "
+        "Avoid national flags, official seals, and emblem-like symbols unless the scene blueprint explicitly requires them. "
         "Pillow will add all readable labels later; focus the generated image on the required physical objects."
     )
 
@@ -606,6 +669,31 @@ def _sd35_panel_visuals(script: ComicPageScript) -> str:
             )
         lines.append(f"P{panel.panel_id}: {_limit_words(prompt, 28)}")
     return "\n".join(lines)
+
+
+def _sd35_infographic_card_rule() -> str:
+    return (
+        "Gemini-style news explainer direction: each panel should read like a simple illustrated information card, "
+        "not a cinematic still. Use one large evidence object, one supporting human reaction or gesture, one simple background proxy "
+        "such as a blank poster, phone, photo, map, document, book, screen, chart, product box, or city silhouette, and clean bright color. "
+        "Avoid lonely symbolic scenes, vast empty windows, art-film composition, heavy realism, and gray pencil-draft panels."
+    )
+
+
+def _sd35_universal_evidence_rule() -> str:
+    return (
+        "Universal evidence-role system: every panel must choose a concrete evidence role and show physical proof, not a mood. "
+        "For event_scene use a location plus actors plus the key object or action. For data_or_amount use a large blank chart, counter, "
+        "stack, pile, map marker, or measured object. For document_or_decision use folders, handoff, podium, meeting table, or blank forms. "
+        "For place_or_route use map shapes, route lines as non-readable diagrams, vehicles, stations, doors, or street objects. "
+        "For stakeholder_reaction use people holding blank phones, audience seats, comment cards, or discussion table items. "
+        "For process_or_timeline use calendar, checklist, ordered objects, repair steps, or workflow table. "
+        "For risk_or_warning use warning triangle, barrier, safety gear, damaged object, emergency kit, or alert device. "
+        "For impact_or_consequence use affected person, closed shelf, stopped vehicle, bill, damaged site, empty seat, or blocked entrance. "
+        "For response_or_solution use worker action, supplies, tools, clinic desk, help counter, or official document handoff. "
+        "For future_next_step use calendar, checklist, monitoring screen with abstract shapes, waiting queue, or follow-up meeting. "
+        "Do not let generic people, generic rooms, empty screens, scenic backgrounds, or symbolic poses replace the evidence objects."
+    )
 
 
 def _panel_lines(script: ComicPageScript) -> list[str]:
@@ -718,7 +806,7 @@ def _build_sd35_medium_prompt(script: ComicPageScript, generation_settings: Gene
 
     clip_prompt = (
         f"A square Traditional Chinese news guide manga infographic with {script.panel_count} separate panels, "
-        "visible gutters, clean black panel borders, headline area, category badges, article-specific current-affairs scenes."
+        "visible gutters, clean black panel borders, headline area, category badges, bright flat editorial color, article-specific current-affairs scenes."
     )
 
     return f"""CLIP prompt:
@@ -728,11 +816,14 @@ T5 prompt:
 Create one square manga news page with exactly {script.panel_count} panels.
 Layout: {_sd35_layout_prompt(script)}.
 Direction: {page_visual}
+Evidence-role priority: every panel should show physical proof of its news claim through evidence objects and proxy objects, not mood, generic crowds, or symbolism.
 {color_rule}
 Style: {style_prompt}.
-Use visible gutters, black borders, medium or wide shots, expressive characters, clear environments.
+Use visible gutters, black borders, simple illustrated information-card panels, expressive characters, clear environments.
 Preserve concrete article facts, people, institutions, places, dates, numbers, impacts, reactions, and next steps through the scene plan.
 Match the article shape: crisis, achievement, accident, policy change, investigation, human interest, announcement, trend, or other.
+{_sd35_infographic_card_rule()}
+{_sd35_universal_evidence_rule()}
 Avoid single scene, close-up portrait, generic empty rooms, unrelated trivia, logos, watermarks, readable letters inside the generated illustration.
 Panel plan:
 {panel_visuals}
@@ -765,7 +856,7 @@ def build_sd35_panel_prompt(
         )
 
     clip_prompt = (
-        "A clear editorial manga explainer panel, large obvious key news evidence objects, simplified background, expressive characters, "
+        "A bright editorial manga explainer information-card panel, large obvious key news evidence objects, simplified background, expressive characters, "
         "specific real-world props, clean confident linework, readable composition."
     )
     panel_role = _sd35_panel_role(panel)
@@ -775,19 +866,22 @@ def build_sd35_panel_prompt(
 
 T5 prompt:
 Create one standalone editorial manga news panel.
+Evidence-role priority: use the panel's evidence_type_en, must_show_en, and proxy_objects_en as the visual source of truth. Show physical proof of the news claim, not mood or symbolism.
+Must visibly prioritize this evidence: {focal_evidence}
 Story context for choosing scene only, not for rendering text: {story_context}
 {character_reference}
 Panel role for choosing scene only, not for rendering text: {panel_role}
-Must visibly prioritize this evidence: {focal_evidence}
 Scene blueprint: {_limit_words(panel_visual, 96)}
 Context: {_limit_words(page_visual, 18)}
 {color_rule}
 Style: {style_prompt}; crisp ink, natural hands, clean faces, controlled line density, simplified backgrounds, readable finished comic art.
+{_sd35_infographic_card_rule()}
+{_sd35_universal_evidence_rule()}
 {context_guardrails}
 Keep anatomy coherent, faces appealing, body language readable, and the article's specific issue clear through concrete action and props.
 Keep recurring characters visually consistent across panels: same apparent age, hair color, hair length, outfit family, body type, and accessories when the same role appears again.
-Universal news explainer rule: each panel must visually prove its first callout with one large physical object or action. The main evidence should occupy about 25% to 35% of the image area, sit in the foreground or clear center, and have an uncluttered silhouette. If the news fact is abstract, convert it into a concrete proxy such as a blank chart, product box, map, document, equipment, barrier, warning sign, damaged object, supply bag, tool, queue, meeting table, or stakeholder gesture.
-Key objects and actions are more important than cinematic beauty or background detail. Make required props and foreground action obvious, centered, large, and unobstructed.
+Universal news explainer rule: each panel must visually prove its first callout with one large physical object or action. The main evidence should occupy about 25% to 35% of the image area, sit in the foreground or clear center, and have an uncluttered silhouette. If the news fact is abstract, convert it into a concrete proxy such as sunlight on skin, supplement bottle without text, food tray, blank chart, product box, map, document, equipment, barrier, warning sign, damaged object, supply bag, tool, queue, meeting table, or stakeholder gesture.
+Key objects and actions are more important than cinematic beauty or background detail. Make required props and foreground action obvious, centered, large, and unobstructed. Do not let a doctor, expert, official, analyst, student, crowd, room, or screen dominate the frame when a concrete evidence object should be the main subject.
 The mandatory evidence is non-negotiable. If the scene becomes crowded, remove decorative background detail first.
 Use simple readable shapes and reduce decorative background detail. Avoid rough sketch artifacts, over-sharpened scratch lines, muddy low-contrast areas, unfinished backgrounds, messy micro-lines, distorted faces, inconsistent facial proportions, washed-out monochrome unless requested, and tiny unreadable pseudo-text.
 Avoid generic scenery-only panels unless the article is specifically about weather or landscape; include a foreground subject that explains this panel.

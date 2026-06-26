@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import TypeAlias
 
@@ -160,7 +161,12 @@ def _draw_title(draw: ImageDraw.ImageDraw, script: ComicPageScript) -> None:
         badge_lines = _wrap_text(draw, badge, badge_font, 80, 2)
         badge_w = 86
         badge_h = 72
-        badge_box = (PAGE_MARGIN, PAGE_MARGIN - 6, PAGE_MARGIN + badge_w, PAGE_MARGIN - 6 + badge_h)
+        badge_box = (
+            PAGE_SIZE - PAGE_MARGIN - badge_w,
+            PAGE_MARGIN - 6,
+            PAGE_SIZE - PAGE_MARGIN,
+            PAGE_MARGIN - 6 + badge_h,
+        )
         draw.rounded_rectangle(badge_box, radius=6, fill=BADGE_FILL)
         line_y = badge_box[1] + 8
         for line in badge_lines:
@@ -168,8 +174,8 @@ def _draw_title(draw: ImageDraw.ImageDraw, script: ComicPageScript) -> None:
             draw.text((badge_box[0] + (badge_w - line_w) // 2, line_y), line, font=badge_font, fill=BADGE_TEXT)
             line_y += int(badge_font.size * 1.08)
 
-    title_x = PAGE_MARGIN + badge_w + (18 if badge else 0)
-    max_width = PAGE_SIZE - title_x - PAGE_MARGIN
+    title_x = PAGE_MARGIN
+    max_width = PAGE_SIZE - title_x - PAGE_MARGIN - (badge_w + 18 if badge else 0)
     font, lines = _fit_text_lines(
         draw,
         script.title,
@@ -201,6 +207,9 @@ def _page_badge_text(script: ComicPageScript) -> str:
         return "生活\n警示"
     if any(keyword in haystack for keyword in ("防疫", "疾病", "醫療", "健康")):
         return "健康\n警示"
+    news_type = str(getattr(script, "news_type", "") or "").strip()
+    if news_type:
+        return news_type[:4] if len(news_type) <= 4 else news_type[:2]
     return ""
 
 
@@ -283,18 +292,19 @@ def _draw_callouts(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], ca
         font, lines = _fit_text_lines(
             draw,
             primary,
-            max_width=max(150, (x2 - x1) // 3),
+            max_width=max(170, (x2 - x1) // 3),
             max_lines=1,
-            start_size=25,
-            min_size=18,
+            start_size=29,
+            min_size=20,
             bold=True,
         )
         if lines:
-            label_w = min(_text_width(draw, lines[0], font) + 40, x2 - x1 - 56)
-            label_h = (font.size if hasattr(font, "size") else 25) + 20
+            label_w = min(_text_width(draw, lines[0], font) + 48, x2 - x1 - 56)
+            label_h = (font.size if hasattr(font, "size") else 29) + 24
             label_box = _primary_label_box(box, label_w, label_h)
             draw.rounded_rectangle(label_box, radius=8, fill=TAG_FILL, outline=INK, width=3)
-            draw.text((label_box[0] + 20, label_box[1] + 9), lines[0], font=font, fill=INK)
+            draw.text((label_box[0] + 24, label_box[1] + 10), lines[0], font=font, fill=INK)
+            _draw_focus_arrow(draw, box, label_box)
 
     y = y2 - PANEL_BORDER - 14
     secondary_callouts = [str(item).strip() for item in callouts[1:3] if str(item).strip()]
@@ -333,6 +343,58 @@ def _primary_label_box(box: tuple[int, int, int, int], label_w: int, label_h: in
     return (x, y, min(x + label_w, x2 - PANEL_BORDER - 18), y + label_h)
 
 
+def _draw_focus_arrow(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    label_box: tuple[int, int, int, int],
+) -> None:
+    x1, y1, x2, y2 = box
+    panel_w = x2 - x1
+    panel_h = y2 - y1
+    start = (label_box[2] - 6, label_box[1] + (label_box[3] - label_box[1]) // 2)
+    raw_target = (x1 + int(panel_w * 0.40), y1 + int(panel_h * 0.38))
+    if raw_target[0] <= label_box[2] + 36 and raw_target[1] <= label_box[3] + 36:
+        raw_target = (label_box[2] + 120, label_box[3] + 78)
+
+    dx = raw_target[0] - start[0]
+    dy = raw_target[1] - start[1]
+    length = max(1.0, math.hypot(dx, dy))
+    max_len = min(132, max(86, int(min(panel_w, panel_h) * 0.26)))
+    scale = min(1.0, max_len / length)
+    target = (int(start[0] + dx * scale), int(start[1] + dy * scale))
+    target = (
+        min(max(target[0], x1 + 26), x2 - 26),
+        min(max(target[1], y1 + 26), y2 - 26),
+    )
+
+    draw.line((start, target), fill=(10, 14, 24, 185), width=6)
+    draw.line((start, target), fill=(255, 237, 120, 220), width=4)
+
+    dx = target[0] - start[0]
+    dy = target[1] - start[1]
+    length = max(1.0, math.hypot(dx, dy))
+    ux = dx / length
+    uy = dy / length
+    px = -uy
+    py = ux
+    head_len = 18
+    head_w = 11
+    base = (target[0] - ux * head_len, target[1] - uy * head_len)
+    arrow = [
+        target,
+        (int(base[0] + px * head_w), int(base[1] + py * head_w)),
+        (int(base[0] - px * head_w), int(base[1] - py * head_w)),
+    ]
+    draw.polygon(arrow, fill=(10, 14, 24, 185))
+    inner_base = (target[0] - ux * (head_len - 6), target[1] - uy * (head_len - 6))
+    inner = [
+        target,
+        (int(inner_base[0] + px * (head_w - 5)), int(inner_base[1] + py * (head_w - 5))),
+        (int(inner_base[0] - px * (head_w - 5)), int(inner_base[1] - py * (head_w - 5))),
+    ]
+    draw.polygon(inner, fill=(255, 237, 120, 220))
+
+
 def _draw_speech_overlay(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], speech: list[str]) -> None:
     speech_lines = [str(item).strip() for item in speech if str(item).strip()]
     if not speech_lines:
@@ -342,13 +404,13 @@ def _draw_speech_overlay(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, in
     text = speech_lines[0]
     measure_font = _font(24, bold=True)
     desired_w = _text_width(draw, text, measure_font) + 72
-    bubble_w = min(x2 - x1 - 54, max(180, min(desired_w, 430, int((x2 - x1) * 0.46))))
+    bubble_w = min(x2 - x1 - 54, max(170, min(desired_w, 360, int((x2 - x1) * 0.42))))
     font, lines = _fit_text_lines(
         draw,
         text,
         max_width=bubble_w - 34,
         max_lines=2,
-        start_size=24,
+        start_size=22,
         min_size=17,
         bold=True,
     )

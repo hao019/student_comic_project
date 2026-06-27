@@ -229,11 +229,7 @@ def _draw_text_lines(
 
 
 def _narration_text(panel: dict) -> str:
-    title = str(panel.get("panel_title") or "").strip()
-    main_text = str(panel.get("main_text") or "").strip()
-    if main_text == title:
-        main_text = ""
-    return main_text
+    return str(panel.get("main_text") or "").strip()
 
 
 def _panel_header_height(panel_w: int, panel: dict) -> int:
@@ -242,30 +238,12 @@ def _panel_header_height(panel_w: int, panel: dict) -> int:
 
 def _draw_panel_header(draw: ImageDraw.ImageDraw, header_box: tuple[int, int, int, int], panel: dict) -> int:
     x1, y1, x2, y2 = header_box
-    panel_w = x2 - x1
     header_h = y2 - y1
     draw.rectangle(header_box, fill=HEADER_FILL)
 
-    tag = str(panel.get("panel_title") or "").strip() or f"P{panel.get('panel_id') or ''}"
-    tag_font, tag_lines = _fit_text_lines(
-        draw,
-        tag,
-        max_width=max(86, panel_w // 4),
-        max_lines=1,
-        start_size=28,
-        min_size=20,
-        bold=True,
-    )
-    tag_text = tag_lines[0] if tag_lines else tag
-    tag_w = min(max(_text_width(draw, tag_text, tag_font) + 30, 108), panel_w // 3)
-    tag_box = (header_box[0], header_box[1], header_box[0] + tag_w, header_box[3])
-    draw.rectangle(tag_box, fill=TAG_FILL, outline=INK, width=2)
-    tag_y = tag_box[1] + max(4, (header_h - (tag_font.size if hasattr(tag_font, "size") else 20)) // 2 - 1)
-    draw.text((tag_box[0] + 15, tag_y), tag_text, font=tag_font, fill=INK)
-
     main_text = _narration_text(panel)
-    main_x = tag_box[2] + 12
-    main_w = max(80, header_box[2] - main_x - 12)
+    main_x = header_box[0] + 18
+    main_w = max(80, header_box[2] - main_x - 18)
     main_font, main_lines = _fit_text_lines(
         draw,
         main_text,
@@ -481,10 +459,7 @@ def panel_image_dimensions(script: ComicPageScript) -> dict[int, tuple[int, int]
 def _draw_panel_overlays(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], panel: dict) -> None:
     header_box, image_box = _panel_regions(box, panel)
     _draw_panel_header(draw, header_box, panel)
-    if _is_warning_panel(panel):
-        _draw_warning_icon(draw, image_box)
     _draw_speech_overlay(draw, image_box, panel.get("speech") or [])
-    _draw_callouts(draw, image_box, panel.get("callouts") or [])
 
 
 def compose_comic_page(

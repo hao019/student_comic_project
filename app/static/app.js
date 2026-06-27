@@ -642,10 +642,12 @@ function setActiveMainNav(activeButton) {
 function showMainView(viewName = "generate") {
   const isAnalysis = viewName === "analysis";
   const isLibrary = viewName === "library";
-  if (isAnalysis) {
+  if (!isLibrary) {
     closeHistoryDrawer();
-    closeComicPreview();
     hideComicContextMenu();
+  }
+  if (isAnalysis) {
+    closeComicPreview();
   }
 
   generateView?.classList.toggle("hidden", isAnalysis || isLibrary);
@@ -657,6 +659,15 @@ function showMainView(viewName = "generate") {
   if (isAnalysis) {
     ensureAnalysisStoryboard();
   }
+}
+
+function showHomeView() {
+  closeHistoryDrawer();
+  closeComicPreview();
+  closeArticleView();
+  hideComicContextMenu();
+  showMainView("generate");
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function formatJsonBlock(value) {
@@ -1744,17 +1755,13 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
-homeNavButton?.addEventListener("click", () => {
-  showMainView("generate");
-  setActiveMainNav(homeNavButton);
-  window.scrollTo({ top: 0, behavior: "smooth" });
-});
+homeNavButton?.addEventListener("click", showHomeView);
 libraryNavButton?.addEventListener("click", () => {
   setActiveMainNav(libraryNavButton);
   openHistoryDrawer("history");
 });
 analysisNavButton?.addEventListener("click", () => showMainView("analysis"));
-analysisBackButton?.addEventListener("click", () => showMainView("generate"));
+analysisBackButton?.addEventListener("click", showHomeView);
 openHistoryButton?.addEventListener("click", () => openHistoryDrawer("history"));
 historyAllButton?.addEventListener("click", () => {
   setHistoryDrawerMode("history");
@@ -1804,13 +1811,13 @@ previewFavoriteButton.addEventListener("click", () => {
 });
 previewAnalysisButton?.addEventListener("click", () => showMainView("analysis"));
 comicImage.addEventListener("click", openCurrentResultPreview);
-closeHistoryButton.addEventListener("click", () => showMainView("generate"));
-historyOverlay.addEventListener("click", closeHistoryDrawer);
+closeHistoryButton.addEventListener("click", showHomeView);
+historyOverlay.addEventListener("click", showHomeView);
 refreshHistoryButton.addEventListener("click", loadComicHistory);
 historySearchInput?.addEventListener("input", rerenderCurrentHistory);
-comicPreviewOverlay.addEventListener("click", closeComicPreview);
+comicPreviewOverlay.addEventListener("click", showHomeView);
 closePreviewButton.addEventListener("click", returnToComicHistory);
-dismissPreviewButton.addEventListener("click", closeComicPreview);
+dismissPreviewButton.addEventListener("click", showHomeView);
 articleViewOverlay.addEventListener("click", closeArticleView);
 closeArticleViewButton.addEventListener("click", closeArticleView);
 contextArticleButton.addEventListener("click", () => {
@@ -1853,7 +1860,7 @@ renameDialog.addEventListener("submit", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     if (document.body.classList.contains("comic-preview-open")) {
-      closeComicPreview();
+      showHomeView();
       return;
     }
 
@@ -1873,7 +1880,7 @@ document.addEventListener("keydown", (event) => {
     }
 
     if (!historyDrawer.classList.contains("hidden")) {
-      showMainView("generate");
+      showHomeView();
     }
   }
 });

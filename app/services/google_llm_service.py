@@ -249,18 +249,25 @@ Important:
   dramatic blue lighting only if the article or the panel visual specifically
   needs it.
 - Keep overlay text short because it will be drawn in panel headers.
+- panel_title is only an internal planning label and will not be drawn on the
+  final SD3.5 composed page. Do not rely on it to explain the news.
+- main_text is the only mandatory header text drawn above each panel. It must
+  carry the panel's actual visible explanation without needing panel_title.
 - Keep speech very short, like a reaction sticker, not an article summary.
   Use 4 to 10 Traditional Chinese characters per speech line.
 - Keep callouts short and object-like, ideally 2 to 7 Traditional Chinese
   characters. Avoid long sentence callouts.
-- Every panel_title, main_text, speech line, and callout must also appear in
-  locked_text_blocks exactly.
-- Treat callouts as mandatory visible emphasis labels added by Pillow. Write
-  callouts as concrete key-object or key-fact labels, not vague moods. Good
+- callouts are internal focus labels for planning and SD3.5 emphasis only. They
+  will not be drawn on the final composed page. Use them to name key objects or
+  facts, but make the image itself show those objects clearly.
+- Every main_text and speech line must also appear in locked_text_blocks exactly.
+- panel_title and callouts may appear in locked_text_blocks, but they are not
+  required because they are not drawn as final readable text.
+- Write callouts as concrete key-object or key-fact labels, not vague moods. Good
   examples: "暴雨警報", "破600毫米", "氣流交會", "防汛沙包", "避難提醒",
   "空盒爭議", "80美元", "預購開跑".
-- The first callout should name the most important object/fact in the panel.
-  The SD3.5 image should visibly support that first callout.
+- The first callout should name the most important object/fact in the panel so
+  the SD3.5 image can visibly support it without needing a drawn label.
 
 Panel visual_prompt_en rules:
 - One concrete English sentence per panel, no abstract concepts.

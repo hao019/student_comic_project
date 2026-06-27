@@ -592,7 +592,7 @@ def _sd35_structured_panel_scene(panel) -> str:
     if props:
         structured_parts.append(f"Visible props: {', '.join(props[:6])}.")
     if callouts:
-        structured_parts.append(f"Key news labels that must be visually supported by objects/actions: {', '.join(callouts[:3])}.")
+        structured_parts.append(f"Internal focus cues that must be visually supported by objects/actions: {', '.join(callouts[:3])}.")
     if must_show or proxies or props or callouts:
         structured_parts.append(
             "Make the must-show evidence and key props large, foreground, unobstructed, and easy to recognize at thumbnail size; "
@@ -624,7 +624,7 @@ def _sd35_plain_scene_rule() -> str:
         "Screens, charts, posters, documents, and signs may show simple non-readable diagrams, icons, shapes, or blank blocks. "
         "Do not render readable text, letters, numbers, captions, logos, labels, or speech bubbles. "
         "Avoid national flags, official seals, and emblem-like symbols unless the scene blueprint explicitly requires them. "
-        "Pillow will add all readable labels later; focus the generated image on the required physical objects."
+        "Pillow will add only the panel header and short speech text later; focus the generated image on the required physical objects."
     )
 
 

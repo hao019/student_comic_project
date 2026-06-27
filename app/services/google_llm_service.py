@@ -13,7 +13,7 @@ load_dotenv()
 API_KEY = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=API_KEY)
 
-PRIMARY_TEXT_MODEL = os.getenv("GEMINI_TEXT_MODEL", "gemini-3.1-pro-preview")
+PRIMARY_TEXT_MODEL = os.getenv("GEMINI_TEXT_MODEL", "gemini-3.5-flash")
 TEXT_MODELS = list(dict.fromkeys([
     PRIMARY_TEXT_MODEL,
     "gemini-3.1-flash-lite",

@@ -6,7 +6,7 @@ from app.schemas import GenerationSettings, NewsComicPageScript, SD35ComicPageSc
 ComicPageScript: TypeAlias = NewsComicPageScript | SD35ComicPageScript
 
 
-DEFAULT_STYLE_PRESET = "cinematic_anime"
+DEFAULT_STYLE_PRESET = "default"
 SD35_FIXED_STYLE_PROMPT = (
     "bright social-media news explainer comic style, clean flat editorial color, bold readable silhouettes, "
     "simple character illustrations, large foreground news objects, clear object hierarchy, minimal cinematic shading"
@@ -21,6 +21,11 @@ SD35_STYLE_PROMPTS = {
     "monochrome_draft": (
         "black-and-white manga manuscript style, crisp ink line art, screentone shading, strong contrast, "
         "paper texture, no color"
+    ),
+    "realistic_people": (
+        "strong realistic editorial news illustration style, near-photographic people, natural human proportions, "
+        "believable individual faces, realistic skin texture, real-world lighting, documentary camera composition, "
+        "restrained color, absolutely not anime or cartoon"
     ),
     "shonen": (
         "energetic shonen manga style, dynamic poses, bold perspective, speed-line energy where appropriate, "
@@ -57,6 +62,12 @@ soft vivid color, dynamic character acting, clear news comic panels.""",
     "monochrome_draft": """black-and-white manga manuscript style, crisp ink line art, screentone shading,
 visible pen texture, strong black panel borders, no color except black, white, and gray,
 readable Traditional Chinese text.""",
+    "realistic_people": """strong realistic editorial news illustration style, near-photographic people,
+natural human proportions, believable individual faces, realistic skin texture, subtle facial asymmetry,
+real-world clothing folds, natural hands, documentary camera framing, true-to-life room and street lighting,
+grounded Taiwan everyday environments when relevant, readable Traditional Chinese text.
+Avoid anime faces, cute simplified features, oversized eyes, chibi proportions, exaggerated expressions,
+flat cartoon coloring, plastic skin, fantasy lighting, and generic doll-like characters.""",
     "shonen": """energetic shonen manga style, bold dynamic poses, expressive faces, speed lines,
 dramatic impact framing, high-contrast ink outlines, vivid but controlled color,
 readable Traditional Chinese text.""",
@@ -83,6 +94,20 @@ def _style_prompt(generation_settings: GenerationSettings | None) -> str:
     return COMIC_STYLE_PROMPTS.get(style_preset, COMIC_STYLE_PROMPTS["default"])
 
 
+def _realistic_people_guardrails(generation_settings: GenerationSettings | None) -> str:
+    if _style_preset(generation_settings) != "realistic_people":
+        return ""
+
+    return """
+Realistic people requirements:
+- Prioritize believable adult human anatomy over manga stylization.
+- Faces should have normal eye size, realistic noses and mouths, natural skin texture, and subtle imperfections.
+- Use documentary/editorial photography cues: natural lens perspective, credible room or street lighting, grounded clothing and props.
+- Keep the comic panel structure and readable Traditional Chinese text, but render people and environments as realistic editorial illustrations.
+- Do not use anime, chibi, cute mascot, plastic 3D, doll-like, or simplified cartoon character design.
+""".strip()
+
+
 def _style_preset(generation_settings: GenerationSettings | None) -> str:
     if generation_settings:
         return generation_settings.style_preset
@@ -91,7 +116,7 @@ def _style_preset(generation_settings: GenerationSettings | None) -> str:
 
 def _sd35_style_prompt(generation_settings: GenerationSettings | None) -> str:
     style_preset = _style_preset(generation_settings)
-    return SD35_STYLE_PROMPTS.get(style_preset, SD35_STYLE_PROMPTS["cinematic_anime"])
+    return SD35_STYLE_PROMPTS.get(style_preset, SD35_STYLE_PROMPTS["default"])
 
 
 def _sd35_color_consistency_rule(generation_settings: GenerationSettings | None) -> str:
@@ -746,11 +771,13 @@ def _build_gemini_image_prompt(script: NewsComicPageScript, generation_settings:
     locked_text = _locked_text_lines(script)
 
     style_prompt = _style_prompt(generation_settings)
+    realistic_guardrails = _realistic_people_guardrails(generation_settings)
 
     return f"""Create a complete one-page Traditional Chinese news explainer manga infographic.
 
 Overall style:
 {style_prompt}
+{realistic_guardrails}
 
 Canvas and layout:
 square 1:1 composition.

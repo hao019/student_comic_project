@@ -2,19 +2,13 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 StylePreset = Literal[
-    "cinematic_anime",
     "default",
     "monochrome_draft",
-    "shonen",
-    "gag_4koma",
-    "infographic",
-    "emotional",
-    "taiwan_news",
-    "internet_meme",
+    "realistic_people",
 ]
 
 ImageModel = Literal[
@@ -54,12 +48,18 @@ class ArticleInput(BaseModel):
 class GenerationSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    style_preset: StylePreset = Field(default="cinematic_anime", description="Comic visual style preset")
+    style_preset: StylePreset = Field(default="default", description="Comic visual style preset")
     image_model: ImageModel = Field(default="sd35_medium_local", description="Image generation model")
     sd35: Optional["SD35GenerationSettings"] = Field(
         default=None,
         description="Optional SD3.5 local image generation parameters",
     )
+
+    @model_validator(mode="after")
+    def enforce_style_model_compatibility(self):
+        if self.style_preset == "realistic_people":
+            self.image_model = "gemini_image"
+        return self
 
 
 class SD35GenerationSettings(BaseModel):

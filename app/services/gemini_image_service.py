@@ -1,9 +1,11 @@
 import os
+import base64
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 from google import genai
+from google.genai import types
 from google.genai import errors
 from PIL import Image
 
@@ -12,7 +14,18 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 COMIC_DIR = BASE_DIR / "static" / "outputs" / "comic"
 COMIC_DIR.mkdir(parents=True, exist_ok=True)
 
-GEMINI_IMAGE_MODEL = os.getenv("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-image")
+DEFAULT_IMAGE_MODEL = "gemini-3-pro-image-preview"
+PRIMARY_IMAGE_MODEL = os.getenv("GEMINI_IMAGE_MODEL", DEFAULT_IMAGE_MODEL)
+EXTRA_IMAGE_MODELS = [
+    model.strip()
+    for model in os.getenv("GEMINI_IMAGE_FALLBACK_MODELS", "").split(",")
+    if model.strip()
+]
+IMAGE_MODELS = list(dict.fromkeys([
+    PRIMARY_IMAGE_MODEL,
+    "gemini-3.1-flash-image-preview",
+    *EXTRA_IMAGE_MODELS,
+]))
 
 _CLIENT: Any | None = None
 
@@ -40,6 +53,10 @@ def _response_parts(response: Any) -> list[Any]:
     if parts:
         return parts
 
+    outputs = list(getattr(response, "outputs", None) or [])
+    if outputs:
+        return outputs
+
     for candidate in getattr(response, "candidates", None) or []:
         content = getattr(candidate, "content", None)
         parts.extend(getattr(content, "parts", None) or [])
@@ -48,6 +65,10 @@ def _response_parts(response: Any) -> list[Any]:
 
 
 def _part_to_image(part: Any) -> Image.Image | None:
+    data = getattr(part, "data", None)
+    if data:
+        return Image.open(BytesIO(base64.b64decode(data))).convert("RGB")
+
     inline_data = getattr(part, "inline_data", None)
     if inline_data is None:
         return None
@@ -62,39 +83,49 @@ def _part_to_image(part: Any) -> Image.Image | None:
     return Image.open(BytesIO(data)).convert("RGB")
 
 
+def _generate_image_response(client: Any, model_name: str, prompt: str) -> Any:
+    return client.models.generate_content(
+        model=model_name,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_modalities=["IMAGE"],
+        ),
+    )
+
+
 def generate_image(prompt: str, output_path: Path, url_prefix: str) -> str:
     client = get_client()
-    try:
-        response = client.models.generate_content(
-            model=GEMINI_IMAGE_MODEL,
-            contents=[prompt],
-        )
-    except errors.ClientError as e:
-        message = str(e)
-        status_code = getattr(e, "status_code", None)
-        if status_code == 429 or "RESOURCE_EXHAUSTED" in message:
-            raise GeminiImageGenerationError(
-                f"Gemini image quota exhausted for model {GEMINI_IMAGE_MODEL}. "
-                "Please check Google AI Studio billing/quota or try again later."
-            ) from e
-        raise GeminiImageGenerationError(
-            f"Gemini image generation failed for model {GEMINI_IMAGE_MODEL}: {e}"
-        ) from e
-    except Exception as e:
-        raise GeminiImageGenerationError(
-            f"Gemini image generation failed for model {GEMINI_IMAGE_MODEL}: {e}"
-        ) from e
+    last_error: Exception | None = None
 
-    for part in _response_parts(response):
-        image = _part_to_image(part)
-        if image is None:
-            continue
+    for model_name in IMAGE_MODELS:
+        try:
+            response = _generate_image_response(client, model_name, prompt)
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        image.save(output_path)
-        return f"{url_prefix}/{output_path.name}"
+            for part in _response_parts(response):
+                image = _part_to_image(part)
+                if image is None:
+                    continue
 
-    raise GeminiImageGenerationError("Gemini Image API returned no image data.")
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                image.save(output_path)
+                return f"{url_prefix}/{output_path.name}"
+
+            last_error = GeminiImageGenerationError(
+                f"Gemini Image API returned no image data for model {model_name}."
+            )
+            print(last_error)
+        except errors.ClientError as e:
+            print(f"Gemini image generation failed: {model_name}")
+            print(e)
+            last_error = e
+        except Exception as e:
+            print(f"Gemini image generation failed: {model_name}")
+            print(e)
+            last_error = e
+
+    raise GeminiImageGenerationError(
+        f"Gemini image generation failed after fallback models: {last_error}"
+    )
 
 
 def generate_comic_page_image(prompt: str, filename: str) -> str:

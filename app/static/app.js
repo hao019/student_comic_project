@@ -131,7 +131,7 @@ const progressLabels = [
 const progressStepThresholds = [0, 22, 55, 78];
 const estimatedGenerationMs = 52000;
 const defaultImageModel = "sd35_medium_local";
-const defaultStylePreset = "cinematic_anime";
+const defaultStylePreset = "default";
 const settingsStorageKey = "comicGenerationSettings:v3";
 const favoritesStorageKey = "favoriteComics";
 const lastAnalysisComicStorageKey = "lastAnalysisComic";
@@ -149,20 +149,35 @@ const historyCategories = [
   { id: "auto", label: "車訊", keywords: ["車訊", "汽車", "電動車", "機車", "車廠", "車款"] },
 ];
 const comicStylePresets = [
-  "cinematic_anime",
   "default",
   "monochrome_draft",
-  "shonen",
-  "gag_4koma",
-  "infographic",
-  "emotional",
-  "taiwan_news",
-  "internet_meme",
+  "realistic_people",
 ];
 const imageModelOptions = [
   "gemini_image",
   "sd35_medium_local",
 ];
+
+function configureGenerationSettingsUi() {
+  if (toggleSettingsButton) {
+    toggleSettingsButton.textContent = "生成設定";
+  }
+
+  const styleLabel = document.querySelector('label[for="style-preset"]');
+  if (styleLabel) {
+    styleLabel.textContent = "漫畫風格";
+  }
+
+  if (stylePresetInput) {
+    stylePresetInput.replaceChildren(
+      new Option("預設", "default"),
+      new Option("黑白漫畫原稿風", "monochrome_draft"),
+      new Option("人物寫實", "realistic_people")
+    );
+    stylePresetInput.value = defaultStylePreset;
+  }
+}
+
 const comicStyleDescriptions = {
   cinematic_anime: "接近日系動畫電影感，乾淨漫畫線條、柔和光影、細緻背景與濕潤反光，適合你提供的參考風格。",
   default: "乾淨的新聞漫畫版面，色彩柔和，適合一般文章與新聞說明。",
@@ -264,7 +279,18 @@ function getSd35Settings() {
   };
 }
 
+function isRealisticPeopleStyle() {
+  return (stylePresetInput?.value || defaultStylePreset) === "realistic_people";
+}
+
+function enforceStyleModelCompatibility() {
+  if (isRealisticPeopleStyle() && imageModelInput) {
+    imageModelInput.value = "gemini_image";
+  }
+}
+
 function getGenerationSettings() {
+  enforceStyleModelCompatibility();
   const imageModel = imageModelInput?.value || defaultImageModel;
   const settings = {
     style_preset: stylePresetInput?.value || defaultStylePreset,
@@ -281,6 +307,18 @@ function syncStyleDescription() {
   }
 
   const stylePreset = stylePresetInput?.value || defaultStylePreset;
+  if (stylePreset === "default") {
+    styleDescription.textContent = "乾淨的新聞漫畫版面，色彩柔和，適合一般文章與新聞說明。";
+    return;
+  }
+  if (stylePreset === "monochrome_draft") {
+    styleDescription.textContent = "黑白網點、強烈墨線，漫畫原稿感較重。";
+    return;
+  }
+  if (stylePreset === "realistic_people") {
+    styleDescription.textContent = "強化寫實人物、自然五官比例、真實皮膚與新聞攝影感；此風格限定使用 Gemini Image。";
+    return;
+  }
   styleDescription.textContent = comicStyleDescriptions[stylePreset] || comicStyleDescriptions[defaultStylePreset];
 }
 
@@ -289,10 +327,15 @@ function syncStyleControls() {
     return;
   }
 
+  enforceStyleModelCompatibility();
   syncStyleDescription();
   const showSd35Settings = (imageModelInput?.value || defaultImageModel) === "sd35_medium_local"
     && !generationSettingsPanel?.classList.contains("hidden");
   sd35SettingsPanel?.classList.toggle("hidden", !showSd35Settings);
+  if (imageModelInput) {
+    imageModelInput.disabled = isRealisticPeopleStyle();
+    imageModelInput.title = isRealisticPeopleStyle() ? "人物寫實限定使用 Gemini Image" : "";
+  }
 }
 
 function saveGenerationSettings() {
@@ -1885,6 +1928,7 @@ document.addEventListener("keydown", (event) => {
   }
 });
 mountHistoryAsMainView();
+configureGenerationSettingsUi();
 loadGenerationSettings();
 syncStyleDescription();
 toggleSettingsButton?.classList.toggle(
